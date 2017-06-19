@@ -25,5 +25,9 @@ routers:
     experimental: true
     discoveryHost: localhost
     apiserverHost: localhost
+  filters:
+  - kind: io.l5d.istio
+    mixerHost: 127.0.0.1
+    mixerPort: 9091
   servers:
   - port: 4140

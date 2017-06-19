@@ -182,6 +182,7 @@ class HttpIdentifierConfigDeserializer extends JsonDeserializer[Option[Seq[HttpI
 case class HttpConfig(
   httpAccessLog: Option[String],
   @JsonDeserialize(using = classOf[HttpIdentifierConfigDeserializer]) identifier: Option[Seq[HttpIdentifierConfig]],
+  filters: Option[Seq[HttpFilterConfig]],
   maxChunkKB: Option[Int],
   maxHeadersKB: Option[Int],
   maxInitialLineKB: Option[Int],

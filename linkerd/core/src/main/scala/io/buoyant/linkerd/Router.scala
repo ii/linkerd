@@ -121,6 +121,13 @@ trait RouterConfig {
     _interpreter.getOrElse(defaultInterpreter)
 
   /*
+   * filters allow for injecting filters into every request.
+   */
+
+  @JsonProperty("filters")
+  var _filters: Option[Seq[FilterConfig]] = None
+
+  /*
    * bindingTimeoutMs limits name resolution.
    */
 
