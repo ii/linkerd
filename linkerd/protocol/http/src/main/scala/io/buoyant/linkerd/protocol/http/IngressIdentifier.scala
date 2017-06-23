@@ -53,8 +53,7 @@ case class IngressIdentifierConfig(
     baseDtab: () => Dtab = () => Dtab.base
   ): Identifier[Request] = {
     val client = mkClient(Params.empty).configured(Label("ingress-identifier"))
-    val annotation = annotationClass.getOrElse("linkerd")
-    new IngressIdentifier(prefix, baseDtab, namespace, client.newService(dst), annotation)
+    new IngressIdentifier(prefix, baseDtab, namespace, client.newService(dst), "linkerd")
   }
 }
 
