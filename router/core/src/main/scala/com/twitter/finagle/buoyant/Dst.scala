@@ -11,16 +11,32 @@ sealed trait Dst {
 
 object Dst {
 
-  case class Path(path: FPath, baseDtab: Dtab = Dtab.empty, localDtab: Dtab = Dtab.empty) extends Dst {
+  /*
+   * XXX the baseDtab should not be considered for equality/hashing, since it's
+   * potentially very expensive.
+   */
+  class Path(
+    val path: FPath,
+    val baseDtab: Dtab,
+    val localDtab: Dtab
+  ) extends Dst {
     def dtab: Dtab = baseDtab ++ localDtab
 
     def bind(namer: NameInterpreter = DefaultInterpreter) =
       namer.bind(baseDtab ++ localDtab, path).map(BoundTree(_, path))
 
     def mk(): (Path, Stack.Param[Path]) = (this, Path)
+
+    override def hashCode() = (path, localDtab).hashCode()
   }
 
   implicit object Path extends Stack.Param[Path] {
+    def apply(path: FPath, baseDtab: Dtab = Dtab.empty, localDtab: Dtab = Dtab.empty): Path =
+      new Path(path, baseDtab, localDtab)
+
+    def unapply(p: Path): Option[(FPath, Dtab, Dtab)] =
+      Some(p.path, p.baseDtab, p.localDtab)
+
     val empty = Path(FPath.empty, Dtab.empty, Dtab.empty)
     val default = Path(FPath.read("/$/fail"), Dtab.base, Dtab.local)
   }
