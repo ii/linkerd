@@ -25,7 +25,6 @@ case class IstioInterpreterConfig(
   discoveryPort: Option[Port],
   apiserverHost: Option[String],
   apiserverPort: Option[Port],
-  pollIntervalMs: Option[Long]
 ) extends InterpreterConfig {
   import io.buoyant.k8s.istio._
 
