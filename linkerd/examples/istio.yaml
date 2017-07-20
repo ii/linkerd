@@ -6,7 +6,8 @@ admin:
   port: 9990
 
 routers:
-- protocol: http
+- protocol: h2
+  experimental: true
   identifier:
     kind: io.l5d.k8s.istio
     apiserverHost: localhost
@@ -16,8 +17,5 @@ routers:
     experimental: true
     discoveryHost: localhost
     apiserverHost: localhost
-  loggers:
-  - kind: io.l5d.k8s.istio
-    mixerHost: localhost
   servers:
   - port: 4140
