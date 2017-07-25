@@ -105,7 +105,7 @@ class ApiTest extends FunSuite
       try {
         reqCount match {
           case 1 =>
-            assert(req.uri == "/api/v1/watch/endpoints?resourceVersion=1234567")
+            assert(req.uri == "/api/v1/watch/namespaces/srv/endpoints?resourceVersion=1234567")
             val rsp = Response()
             rsp.version = req.version
             chunk.flatMap(rsp.writer.write)
@@ -120,7 +120,7 @@ class ApiTest extends FunSuite
     }
     val api = Api(service)
 
-    val (stream, c) = api.endpoints.watch(resourceVersion = Some("1234567"))
+    val (stream, c) = api.withNamespace("srv").endpoints.watch(resourceVersion = Some("1234567"))
     try {
       val hd = stream.head
       assert(!hd.isDefined)
@@ -139,7 +139,7 @@ class ApiTest extends FunSuite
       reqCount match {
         case 1 =>
           try {
-            assert(req.path == "/api/v1/watch/endpoints")
+            assert(req.path == "/api/v1/watch/namespaces/srv/endpoints")
             assert(req.params.getBoolean("watch").isEmpty)
             rsp.version = req.version
             Future.value(rsp)
@@ -153,7 +153,7 @@ class ApiTest extends FunSuite
     }
     val api = Api(service)
 
-    val (stream, closable) = api.endpoints.watch()
+    val (stream, closable) = api.withNamespace("srv").endpoints.watch()
     try {
       val w = rsp.writer
       await(w.write(modified2 concat added0))
@@ -211,7 +211,7 @@ class ApiTest extends FunSuite
       try {
         reqCount match {
           case 1 =>
-            assert(req.uri == s"/api/v1/watch/endpoints?resourceVersion=$ver")
+            assert(req.uri == s"/api/v1/watch/namespaces/srv/endpoints?resourceVersion=$ver")
             val rsp = Response()
             rsp.version = req.version
             val msg = Buf.Utf8("""{"type":"ERROR","object":{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"401: The event in requested index is outdated and cleared (the requested history has been cleared [4770862/4659254]) [4771861]"}}""")
@@ -220,7 +220,7 @@ class ApiTest extends FunSuite
             }
             Future.value(rsp)
           case 2 =>
-            assert(req.uri == "/api/v1/watch/endpoints")
+            assert(req.uri == "/api/v1/watch/namespaces/srv/endpoints")
             val rsp = Response()
             rsp.version = req.version
             rsp.setContentTypeJson()
@@ -229,7 +229,7 @@ class ApiTest extends FunSuite
             rsp.writer.write(endpointsList) before rsp.writer.close()
             Future.value(rsp)
           case 3 =>
-            assert(req.uri == "/api/v1/watch/endpoints?resourceVersion=17575669") // this is the top-level resource version
+            assert(req.uri == "/api/v1/watch/namespaces/srv/endpoints?resourceVersion=17575669") // this is the top-level resource version
             Future.never
 
           case _ =>
@@ -243,7 +243,7 @@ class ApiTest extends FunSuite
     }
     val api = Api(service)
 
-    val (stream, closable) = api.endpoints.watch(resourceVersion = Some(ver))
+    val (stream, closable) = api.withNamespace("srv").endpoints.watch(resourceVersion = Some(ver))
     try {
       await(stream.uncons) match {
         case Some((EndpointsError(status), stream)) =>
@@ -288,7 +288,7 @@ class ApiTest extends FunSuite
       reqCount match {
         case 1 =>
           try {
-            assert(req.uri == "/api/v1/watch/endpoints")
+            assert(req.uri == "/api/v1/watch/namespaces/srv/endpoints")
             Future.value(rsp)
           } catch {
             case e: Throwable =>
@@ -300,7 +300,7 @@ class ApiTest extends FunSuite
     }
     val api = Api(service)
 
-    val (stream, closable) = api.endpoints.watch()
+    val (stream, closable) = api.withNamespace("srv").endpoints.watch()
     try {
       var uncons = stream.uncons
       assert(!uncons.isDefined)
@@ -328,7 +328,7 @@ class ApiTest extends FunSuite
       try {
         reqCount match {
           case 1 =>
-            assert(req.uri == s"/api/v1/watch/endpoints?resourceVersion=$ver")
+            assert(req.uri == s"/api/v1/watch/namespaces/srv/endpoints?resourceVersion=$ver")
             val rsp = Response()
             rsp.version = req.version
             rsp.status = Status.Gone
@@ -338,7 +338,7 @@ class ApiTest extends FunSuite
             }
             Future.value(rsp)
           case 2 =>
-            assert(req.uri == "/api/v1/watch/endpoints")
+            assert(req.uri == "/api/v1/watch/namespaces/srv/endpoints")
             val rsp = Response()
             rsp.version = req.version
             rsp.setContentTypeJson()
@@ -347,7 +347,7 @@ class ApiTest extends FunSuite
             rsp.writer.write(endpointsList) before rsp.writer.close()
             Future.value(rsp)
           case 3 =>
-            assert(req.uri == "/api/v1/watch/endpoints?resourceVersion=17575669") // this is the top-level resource version
+            assert(req.uri == "/api/v1/watch/namespaces/srv/endpoints?resourceVersion=17575669") // this is the top-level resource version
             Future.never
 
           case _ => // ignore
@@ -361,7 +361,7 @@ class ApiTest extends FunSuite
     }
     val api = Api(service)
 
-    val (stream, closable) = api.endpoints.watch(resourceVersion = Some(ver))
+    val (stream, closable) = api.withNamespace("srv").endpoints.watch(resourceVersion = Some(ver))
     try {
       await(stream.uncons) match {
         case Some((EndpointsModified(mod), stream)) =>
