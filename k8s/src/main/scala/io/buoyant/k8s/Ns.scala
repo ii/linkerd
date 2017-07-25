@@ -95,8 +95,12 @@ abstract class Ns[O <: KubeObject: Manifest, W <: Watch[O]: Manifest, L <: KubeL
 }
 
 object Ns {
-  abstract class ObjectCache[O <: KubeObject: Manifest, W <: Watch[O]: Manifest, L <: KubeList[O]: Manifest] {
-    def initialize(list: L): Unit
+  abstract class CacheLike[O <: KubeObject: Manifest, W <: Watch[O]: Manifest] {
     def update(event: W): Unit
+  }
+
+  abstract class ObjectCache[O <: KubeObject: Manifest, W <: Watch[O]: Manifest, L <: KubeList[O]: Manifest]
+    extends CacheLike[O, W] {
+    def initialize(list: L): Unit
   }
 }

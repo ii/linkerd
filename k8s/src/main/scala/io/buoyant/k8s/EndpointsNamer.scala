@@ -112,7 +112,7 @@ abstract class EndpointsNamer(
     // wish i didn't have to call initialize then get here, just to get the addrs
     // from the Endpoints object. who wrote this api anyway? /me raises hand. whoops.
     val toNameTree: v1.Endpoints => NameTree[Name] = endpoints => {
-      cache.initialize(v1.EndpointsList(items = Seq(endpoints)))
+      cache.initialize(endpoints)
       cache.get(nsName, portName, serviceName) match {
         case Some(addr) => NameTree.Leaf(Name.Bound(addr, id, residual))
         case None => NameTree.Neg
@@ -133,7 +133,7 @@ abstract class EndpointsNamer(
 
 // maybe this shouldn't extend ObjectCache? that trait assumes that there's a list endpoint
 // for initialization, but we're never calling the list endpoint for... endpoints.
-class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch, v1.EndpointsList] {
+class EndpointsCache extends Ns.CacheLike[v1.Endpoints, v1.EndpointsWatch] {
 
   private[this] case class CacheKey(nsName: String, portName: String, serviceName: String)
 
@@ -141,10 +141,8 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch, v1.
 
   private[this] var cache = Map.empty[CacheKey, VarUp[Addr]]
 
-  def initialize(list: v1.EndpointsList): Unit =
-    for { endpoints <- list.items } synchronized {
-      add(endpoints)
-    }
+  def initialize(endpoints: v1.Endpoints): Unit =
+    synchronized { add(endpoints) }
 
   def update(watch: v1.EndpointsWatch): Unit = watch match {
     case v1.EndpointsError(e) => log.error("k8s watch error: %s", e)
