@@ -6,6 +6,7 @@ import com.twitter.io.Buf
 import com.twitter.util._
 import io.buoyant.k8s.{ObjectMeta, ObjectReference}
 import io.buoyant.test.{Awaits, Exceptions}
+import org.scalatest.exceptions.TestFailedException
 import org.scalatest.{FunSuite, Inside, OptionValues}
 
 class ApiTest extends FunSuite
@@ -113,6 +114,7 @@ class ApiTest extends FunSuite
           case _ => Future.never
         }
       } catch {
+        case up: TestFailedException => throw up
         case e: Throwable =>
           failure = e
           Future.exception(e)
@@ -144,6 +146,7 @@ class ApiTest extends FunSuite
             rsp.version = req.version
             Future.value(rsp)
           } catch {
+            case up: TestFailedException => throw up
             case e: Throwable =>
               failure = e
               Future.exception(e)
@@ -236,6 +239,7 @@ class ApiTest extends FunSuite
             Future.never
         }
       } catch {
+        case up: TestFailedException => throw up
         case e: Throwable =>
           failure = e
           Future.exception(e)
@@ -291,6 +295,7 @@ class ApiTest extends FunSuite
             assert(req.uri == "/api/v1/watch/namespaces/srv/endpoints")
             Future.value(rsp)
           } catch {
+            case up: TestFailedException => throw up
             case e: Throwable =>
               failure = e
               Future.exception(e)
@@ -354,6 +359,7 @@ class ApiTest extends FunSuite
             Future.never
         }
       } catch {
+        case up: TestFailedException => throw up
         case e: Throwable =>
           failure = e
           Future.exception(e)
