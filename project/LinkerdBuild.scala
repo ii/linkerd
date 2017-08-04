@@ -57,7 +57,7 @@ object LinkerdBuild extends Base {
       .settings(coverageExcludedPackages := ".*XXX_.*")
 
     val h2 = projectDir("router/h2")
-      .dependsOn(core, Finagle.h2)
+      .dependsOn(core, Finagle.h2 % "compile->compile;test->test")
       .withTests()
       .withE2e()
 
@@ -214,6 +214,7 @@ object LinkerdBuild extends Base {
        |   -XX:-TieredCompilation                            \
        |   -XX:+UseStringDeduplication                       \
        |   -Dcom.twitter.util.events.sinkEnabled=false       \
+       |   -Dorg.apache.thrift.readLength=10485760           \
        |   ${LOCAL_JVM_OPTIONS:-}                            "
        |""".stripMargin
 
@@ -473,8 +474,9 @@ object LinkerdBuild extends Base {
     object Protocol {
 
       val h2 = projectDir("linkerd/protocol/h2")
-        .dependsOn(core, Router.h2, k8s)
+        .dependsOn(core, Router.h2, k8s, Finagle.h2 % "test->test;e2e->test")
         .withTests().withE2e()
+        .withGrpc
         .withTwitterLibs(Deps.finagle("netty4"))
 
       val http = projectDir("linkerd/protocol/http")
