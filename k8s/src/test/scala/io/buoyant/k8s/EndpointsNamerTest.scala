@@ -211,6 +211,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     val Auth = Buf.Utf8(
       """
         |{
+        |  "kind": "Endpoints",
         |  "metadata": {
         |    "name": "auth",
         |    "namespace": "srv",
@@ -264,7 +265,122 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |  ]
         |}"""
     )
-
+    val Projects = Buf.Utf8(
+      """
+        |{
+        |  "kind": "Endpoints",
+        |  "metadata": {
+        |    "name": "projects",
+        |    "namespace": "srv",
+        |    "selfLink": "/api/v1/namespaces/srv/endpoints/projects",
+        |    "uid": "6c39393c-525e-11e5-9859-42010af01815",
+        |    "resourceVersion": "4962611",
+        |    "creationTimestamp": "2015-09-03T17:08:40Z"
+        |  },
+        |  "subsets": [
+        |    {
+        |      "addresses": [
+        |        {
+        |          "ip": "10.248.0.11",
+        |          "targetRef": {
+        |            "kind": "Pod",
+        |            "namespace": "srv",
+        |            "name": "projects-h2zbp",
+        |            "uid": "6bc6a899-525e-11e5-9859-42010af01815",
+        |            "resourceVersion": "4962606"
+        |          }
+        |        },
+        |        {
+        |          "ip": "10.248.7.12",
+        |          "targetRef": {
+        |            "kind": "Pod",
+        |            "namespace": "srv",
+        |            "name": "projects-fzfv2",
+        |            "uid": "6bc6b7be-525e-11e5-9859-42010af01815",
+        |            "resourceVersion": "4962607"
+        |          }
+        |        },
+        |        {
+        |          "ip": "10.248.8.10",
+        |          "targetRef": {
+        |            "kind": "Pod",
+        |            "namespace": "srv",
+        |            "name": "projects-0o69j",
+        |            "uid": "6bc6c27c-525e-11e5-9859-42010af01815",
+        |            "resourceVersion": "4962610"
+        |          }
+        |        }
+        |      ],
+        |      "ports": [
+        |        {
+        |          "name": "http",
+        |          "port": 8087,
+        |          "protocol": "TCP"
+        |        }
+        |      ]
+        |    }
+        |  ]
+        |}
+      """.stripMargin
+    )
+    val Events = Buf.Utf8(
+      """
+        |{
+        |  "kind": "Endpoints",
+        |  "metadata": {
+        |    "name": "events",
+        |    "namespace": "srv",
+        |    "selfLink": "/api/v1/namespaces/srv/endpoints/events",
+        |    "uid": "67abfc86-525e-11e5-9859-42010af01815",
+        |    "resourceVersion": "4962380",
+        |    "creationTimestamp": "2015-09-03T17:08:32Z"
+        |  },
+        |  "subsets": [
+        |    {
+        |      "addresses": [
+        |        {
+        |          "ip": "10.248.0.9",
+        |          "targetRef": {
+        |            "kind": "Pod",
+        |            "namespace": "srv",
+        |            "name": "events-6g3in",
+        |            "uid": "673a6ebf-525e-11e5-9859-42010af01815",
+        |            "resourceVersion": "4962378"
+        |          }
+        |        },
+        |        {
+        |          "ip": "10.248.5.8",
+        |          "targetRef": {
+        |            "kind": "Pod",
+        |            "namespace": "srv",
+        |            "name": "events-l8xyq",
+        |            "uid": "673a68fe-525e-11e5-9859-42010af01815",
+        |            "resourceVersion": "4962374"
+        |          }
+        |        },
+        |        {
+        |          "ip": "10.248.6.8",
+        |          "targetRef": {
+        |            "kind": "Pod",
+        |            "namespace": "srv",
+        |            "name": "events-4hkt8",
+        |            "uid": "673a664a-525e-11e5-9859-42010af01815",
+        |            "resourceVersion": "4962350"
+        |          }
+        |        }
+        |      ],
+        |      "ports": [
+        |        {
+        |          "name": "http",
+        |          "port": 8085,
+        |          "protocol": "TCP"
+        |        }
+        |      ]
+        |    }
+        |  ]
+        |}
+      """.stripMargin
+    )
     val Services = Buf.Utf8("""{"apiVersion":"v1","items":[{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"sessions"},"name":"sessions","namespace":"srv","resourceVersion":"33186979","selfLink":"/api/v1/namespaces/srv/services/sessions","uid":"8122d7d0-1042-11e7-b340-42010af00004"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"sessions"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"ip":"35.184.61.229"}]}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"projects"},"name":"projects","namespace":"srv","resourceVersion":"33186980","selfLink":"/api/v1/namespaces/srv/services/projects","uid":"8122d7d0-1042-11e7-b340-42010af00005"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"projects"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"events"},"name":"events","namespace":"srv","resourceVersion":"33186981","selfLink":"/api/v1/namespaces/srv/services/events","uid":"8122d7d0-1042-11e7-b340-42010af00006"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"events"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"linkerd.io"}]}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"auth"},"name":"auth","namespace":"srv","resourceVersion":"33186981","selfLink":"/api/v1/namespaces/srv/services/auth","uid":"8122d7d0-1042-11e7-b340-42010af00007"},"spec":{"clusterIP":"10.199.240.10","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":"http"},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"auth"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"linkerd.io"}]}}}],"kind":"ServiceList","metadata":{"resourceVersion":"33787896","selfLink":"/api/v1/namespaces/srv/services"}}""")
   }
 
@@ -292,6 +408,14 @@ class EndpointsNamerTest extends FunSuite with Awaits {
       case req if req.uri == "/api/v1/namespaces/srv/endpoints/auth" =>
         val rsp = Response()
         rsp.content = Rsps.Auth
+        Future.value(rsp)
+      case req if req.uri == "/api/v1/namespaces/srv/endpoints/projects" =>
+        val rsp = Response()
+        rsp.content = Rsps.Projects
+        Future.value(rsp)
+      case req if req.uri == "/api/v1/namespaces/srv/endpoints/events" =>
+        val rsp = Response()
+        rsp.content = Rsps.Events
         Future.value(rsp)
       case req if req.uri == "/api/v1/watch/namespaces/srv/endpoints/sessions?resourceVersion=5319582" =>
         val rsp = Response()
