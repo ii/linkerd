@@ -593,23 +593,15 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     @volatile var req: Request = null
 
     val service = Service.mk[Request, Response] {
-      case r if r.path.startsWith(NonWatchPath) =>
+      case r if r.path.startsWith("/api/v1/namespaces/srv/endpoints/sessions") =>
         req = r
         val rsp = Response()
         rsp.content = Rsps.Init
         Future.value(rsp)
-      case r if r.path.startsWith("/api/v1/watch/namespaces/srv/services") =>
-        val rsp = Response()
-        rsp.content = Rsps.Services
-        Future.value(rsp)
-      case r if r.path.startsWith(WatchPath) =>
+      case r if r.path.startsWith("/api/v1/watch/namespaces/srv/endpoints/sessions") =>
         req = r
         val rsp = Response()
         rsp.content = Rsps.Init
-        Future.value(rsp)
-      case r if r.path.startsWith("/api/v1/namespaces/srv/services") =>
-        val rsp = Response()
-        rsp.content = Rsps.Services
         Future.value(rsp)
       case r =>
         throw new TestFailedException(s"unexpected request: $r", 1)
@@ -617,9 +609,9 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
     val api = v1.Api(service)
     val namer = new MultiNsNamer(Path.read("/test"), Some("versionLabel"), api.withNamespace)
-    namer.lookup(Path.read("/srv/thrift/sessions/d3adb33f"))
+    await(namer.lookup(Path.read("/srv/thrift/sessions/d3adb33f")).toFuture)
 
-    assert(req.uri == "/api/v1/watch/namespaces/srv/endpoints?labelSelector=versionLabel%3Dd3adb33f&resourceVersion=5319481")
+    assert(req.uri.contains("labelSelector=versionLabel%3Dd3adb33f"))
   }
 
   test("NameTree doesn't update on endpoint change") {
