@@ -405,7 +405,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     val Inits = Map[String, Buf](
       s"$NonWatchPath$SessionsPath" -> Init,
       s"${NonWatchPath}namespaces/srv/endpoints/auth" -> Auth,
-      s"${NonWatchPath}namespaces/srv/empty-subset" -> Empty,
+      s"${NonWatchPath}namespaces/srv/endpoints/empty-subset" -> Empty,
       s"${NonWatchPath}namespaces/srv/endpoints/projects" -> Projects,
       s"${NonWatchPath}namespaces/srv/endpoints/events" -> Events
     )
@@ -737,7 +737,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
       assert(state == Activity.Pending)
       doInit.setDone()
-
+      await(activity.toFuture)
       assert(state == Activity.Ok(NameTree.Neg))
     }
   }
