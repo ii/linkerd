@@ -551,23 +551,12 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
   test("missing port names are negative") {
     val service = Service.mk[Request, Response] {
-      case req if req.uri == "/api/v1/namespaces/srv/endpoints/thrift/sessions" =>
+      case req if req.uri == "/api/v1/namespaces/srv/endpoints/sessions" =>
         val rsp = Response()
         rsp.content = Rsps.Init
         Future.value(rsp)
-
-      case req if req.uri == "/api/v1/watch/namespaces/srv/endpoints/thrift/sessions" =>
+      case req if req.uri == "/api/v1/watch/namespaces/srv/endpoints/sessions" =>
         Future.value(Response())
-
-      case req if req.uri == "/api/v1/namespaces/srv/services" =>
-        val rsp = Response()
-        rsp.content = Rsps.Services
-        Future.value(rsp)
-
-      case req if req.uri == "/api/v1/watch/namespaces/srv/services?resourceVersion=33787896" =>
-        val rsp = Response()
-        Future.value(rsp)
-
       case req =>
         throw new TestFailedException(s"unexpected request: $req", 1)
     }
