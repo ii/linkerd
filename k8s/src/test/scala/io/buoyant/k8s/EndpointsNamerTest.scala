@@ -557,6 +557,8 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         doInit.setDone()
         time.advance(1.millis)
         timer.tick()
+
+        await(activity.toFuture)
         assertHas(3)
       }
     }
@@ -588,9 +590,13 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     val _ = new Fixtures {
       assert(state == Activity.Pending)
       doInit.setDone()
+
+      await(activity.toFuture)
       assertHas(3)
 
       doScaleUp.setDone()
+
+      await(activity.toFuture)
       assertHas(4)
 
       doInit = new Promise[Unit]
@@ -598,6 +604,8 @@ class EndpointsNamerTest extends FunSuite with Awaits {
       doFail.setDone()
 
       doScaleDown.setDone()
+
+      await(activity.toFuture)
       assertHas(3)
     }
   }
@@ -631,14 +639,20 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     val _ = new Fixtures {
       assert(state == Activity.Pending)
       doInit.setDone()
+
+      await(activity.toFuture)
       assertHas(3)
       assert(stateUpdates == 2)
 
       doScaleUp.setDone()
+
+      await(activity.toFuture)
       assertHas(4)
       assert(stateUpdates == 2)
 
       doScaleDown.setDone()
+
+      await(activity.toFuture)
       assertHas(3)
       assert(stateUpdates == 2)
     }
@@ -721,6 +735,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
       override def name = "/sRv/HtTp/SeSsIoNs"
       assert(state == Activity.Pending)
       doInit.setDone()
+
       assertHas(3)
 
       doScaleUp.setDone()
@@ -737,6 +752,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
       assert(state == Activity.Pending)
       doInit.setDone()
+
       await(activity.toFuture)
       assert(state == Activity.Ok(NameTree.Neg))
     }
