@@ -11,7 +11,8 @@ import org.scalatest.exceptions.TestFailedException
 import scala.util.control.NoStackTrace
 
 class EndpointsNamerTest extends FunSuite with Awaits {
-
+  val WatchPath = "/api/v1/watch/namespaces/srv/endpoints/sessions"
+  val NonWatchPath = "/api/v1/namespaces/srv/endpoints/sessions"
   object Rsps {
     val InitResourceVersion = "4962526"
     val Init = Buf.Utf8(
@@ -22,7 +23,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |  "metadata": {
         |    "name": "sessions",
         |    "namespace": "srv",
-        |    "selfLink": "/api/v1/namespaces/srv/endpoints/sessions",
+        |    "selfLink": "$NonWatchPath",
         |    "uid": "6a698096-525e-11e5-9859-42010af01815",
         |    "resourceVersion": "$InitResourceVersion",
         |    "creationTimestamp": "2015-09-03T17:08:37Z"
@@ -73,9 +74,9 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |}""".stripMargin
     )
 
-    val ScaleUp = Buf.Utf8("""{"type":"MODIFIED","object":{"kind":"Endpoints","apiVersion":"v1","metadata":{"name":"sessions","namespace":"srv","selfLink":"/api/v1/namespaces/srv/endpoints/sessions","uid":"6a698096-525e-11e5-9859-42010af01815","resourceVersion":"5319582","creationTimestamp":"2015-09-03T17:08:37Z"},"subsets":[{"addresses":[{"ip":"10.248.1.11","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-09ujq","uid":"669b7a4f-55ef-11e5-a801-42010af08a01","resourceVersion":"5319581"}},{"ip":"10.248.4.9","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-293kc","uid":"69f5a7d2-525e-11e5-9859-42010af01815","resourceVersion":"4962471"}},{"ip":"10.248.7.11","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-mr9gb","uid":"69f5b78e-525e-11e5-9859-42010af01815","resourceVersion":"4962524"}},{"ip":"10.248.8.9","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-nicom","uid":"69f5b623-525e-11e5-9859-42010af01815","resourceVersion":"4962517"}}],"ports":[{"name":"http","port":8083,"protocol":"TCP"}]}]}}""")
+    val ScaleUp = Buf.Utf8("""{"type":"MODIFIED","object":{"kind":"Endpoints","apiVersion":"v1","metadata":{"name":"sessions","namespace":"srv","selfLink":NonWatchPath,"uid":"6a698096-525e-11e5-9859-42010af01815","resourceVersion":"5319582","creationTimestamp":"2015-09-03T17:08:37Z"},"subsets":[{"addresses":[{"ip":"10.248.1.11","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-09ujq","uid":"669b7a4f-55ef-11e5-a801-42010af08a01","resourceVersion":"5319581"}},{"ip":"10.248.4.9","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-293kc","uid":"69f5a7d2-525e-11e5-9859-42010af01815","resourceVersion":"4962471"}},{"ip":"10.248.7.11","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-mr9gb","uid":"69f5b78e-525e-11e5-9859-42010af01815","resourceVersion":"4962524"}},{"ip":"10.248.8.9","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-nicom","uid":"69f5b623-525e-11e5-9859-42010af01815","resourceVersion":"4962517"}}],"ports":[{"name":"http","port":8083,"protocol":"TCP"}]}]}}""")
 
-    val ScaleDown = Buf.Utf8("""{"type":"MODIFIED","object":{"kind":"Endpoints","apiVersion":"v1","metadata":{"name":"sessions","namespace":"srv","selfLink":"/api/v1/namespaces/srv/endpoints/sessions","uid":"6a698096-525e-11e5-9859-42010af01815","resourceVersion":"5319605","creationTimestamp":"2015-09-03T17:08:37Z"},"subsets":[{"addresses":[{"ip":"10.248.4.9","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-293kc","uid":"69f5a7d2-525e-11e5-9859-42010af01815","resourceVersion":"4962471"}},{"ip":"10.248.7.11","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-mr9gb","uid":"69f5b78e-525e-11e5-9859-42010af01815","resourceVersion":"4962524"}},{"ip":"10.248.8.9","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-nicom","uid":"69f5b623-525e-11e5-9859-42010af01815","resourceVersion":"4962517"}}],"ports":[{"name":"http","port":8083,"protocol":"TCP"}]}]}}""")
+    val ScaleDown = Buf.Utf8("""{"type":"MODIFIED","object":{"kind":"Endpoints","apiVersion":"v1","metadata":{"name":"sessions","namespace":"srv","selfLink":NonWatchPath,"uid":"6a698096-525e-11e5-9859-42010af01815","resourceVersion":"5319605","creationTimestamp":"2015-09-03T17:08:37Z"},"subsets":[{"addresses":[{"ip":"10.248.4.9","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-293kc","uid":"69f5a7d2-525e-11e5-9859-42010af01815","resourceVersion":"4962471"}},{"ip":"10.248.7.11","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-mr9gb","uid":"69f5b78e-525e-11e5-9859-42010af01815","resourceVersion":"4962524"}},{"ip":"10.248.8.9","targetRef":{"kind":"Pod","namespace":"srv","name":"sessions-nicom","uid":"69f5b623-525e-11e5-9859-42010af01815","resourceVersion":"4962517"}}],"ports":[{"name":"http","port":8083,"protocol":"TCP"}]}]}}""")
 
     val Services = Buf.Utf8("""{"apiVersion":"v1","items":[{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"sessions"},"name":"sessions","namespace":"srv","resourceVersion":"33186979","selfLink":"/api/v1/namespaces/srv/services/sessions","uid":"8122d7d0-1042-11e7-b340-42010af00004"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"sessions"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"ip":"35.184.61.229"}]}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"projects"},"name":"projects","namespace":"srv","resourceVersion":"33186980","selfLink":"/api/v1/namespaces/srv/services/projects","uid":"8122d7d0-1042-11e7-b340-42010af00005"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"projects"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"events"},"name":"events","namespace":"srv","resourceVersion":"33186981","selfLink":"/api/v1/namespaces/srv/services/events","uid":"8122d7d0-1042-11e7-b340-42010af00006"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"events"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"linkerd.io"}]}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"auth"},"name":"auth","namespace":"srv","resourceVersion":"33186981","selfLink":"/api/v1/namespaces/srv/services/auth","uid":"8122d7d0-1042-11e7-b340-42010af00007"},"spec":{"clusterIP":"10.199.240.10","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":"http"},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"auth"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"linkerd.io"}]}}}],"kind":"ServiceList","metadata":{"resourceVersion":"33787896","selfLink":"/api/v1/namespaces/srv/services"}}""")
   }
@@ -84,11 +85,11 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     @volatile var doInit, didInit, doScaleUp, doScaleDown, doFail = new Promise[Unit]
 
     val service = Service.mk[Request, Response] {
-      case req if req.uri == "/api/v1/namespaces/srv/endpoints/sessions" =>
+      case req if req.uri == NonWatchPath =>
         val rsp = Response()
         rsp.content = Rsps.Init
         doInit before Future.value(rsp)
-      case req if req.uri == s"/api/v1/watch/namespaces/srv/endpoints/sessions" =>
+      case req if req.uri == WatchPath =>
         val rsp = Response()
 
         doScaleUp before rsp.writer.write(Rsps.ScaleUp) before {
@@ -144,13 +145,13 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     @volatile var state: Activity.State[NameTree[Name]] = Activity.Pending
 
     val service = Service.mk[Request, Response] {
-      case req if req.uri == "/api/v1/namespaces/srv/endpoints/sessions" =>
+      case req if req.uri == NonWatchPath =>
         request = req
         val rsp = Response()
         rsp.content = Rsps.Init
         Future.value(rsp)
 
-      case req if req.uri.startsWith("/api/v1/watch/namespaces/srv/endpoints/sessions") =>
+      case req if req.uri.startsWith(WatchPath) =>
         request = req
         val rsp = Response()
         Future.value(rsp)
@@ -166,7 +167,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     }
 
     assert(
-      request.uri.startsWith("/api/v1/watch/namespaces/srv/endpoints/sessions"),
+      request.uri.startsWith(WatchPath),
       "Request was not sent to correct namespace"
     )
     state match {
@@ -217,7 +218,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         rsp.content = Rsps.Init
         Future.value(rsp)
 
-      case req if req.uri == "/api/v1/watch/namespaces/srv/endpoints/thrift/sessions?resourceVersion=5319481" =>
+      case req if req.uri == "/api/v1/watch/namespaces/srv/endpoints/thrift/sessions" =>
         Future.value(Response())
 
       case req if req.uri == "/api/v1/namespaces/srv/services" =>
@@ -265,7 +266,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     @volatile var req: Request = null
 
     val service = Service.mk[Request, Response] {
-      case r if r.path.startsWith("/api/v1/watch/namespaces/srv/endpoints") =>
+      case r if r.path.startsWith(NonWatchPath) =>
         req = r
         val rsp = Response()
         rsp.content = Rsps.Init
@@ -274,7 +275,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         val rsp = Response()
         rsp.content = Rsps.Services
         Future.value(rsp)
-      case r if r.path.startsWith("/api/v1/namespaces/srv/endpoints") =>
+      case r if r.path.startsWith(WatchPath) =>
         req = r
         val rsp = Response()
         rsp.content = Rsps.Init
