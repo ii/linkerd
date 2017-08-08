@@ -477,13 +477,13 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     @volatile var state: Activity.State[NameTree[Name]] = Activity.Pending
 
     val service = Service.mk[Request, Response] {
-      case req if req.uri == NonWatchPath =>
+      case req if req.uri == s"$NonWatchPath$SessionsPath" =>
         request = req
         val rsp = Response()
         rsp.content = Rsps.Init
         Future.value(rsp)
 
-      case req if req.uri.startsWith(WatchPath) =>
+      case req if req.uri.startsWith(s"$WatchPath$SessionsPath") =>
         request = req
         val rsp = Response()
         Future.value(rsp)
@@ -499,7 +499,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     }
 
     assert(
-      request.uri.startsWith(WatchPath),
+      request.uri.startsWith(s"$WatchPath$SessionsPath"),
       "Request was not sent to correct namespace"
     )
     state match {
