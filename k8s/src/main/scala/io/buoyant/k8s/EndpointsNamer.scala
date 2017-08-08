@@ -12,7 +12,7 @@ class MultiNsNamer(
   labelName: Option[String],
   mkApi: String => v1.NsApi,
   backoff: Stream[Duration] = Backoff.exponentialJittered(10.milliseconds, 10.seconds)
-)(implicit timer: Timer = DefaultTimer) extends EndpointsNamer(idPrefix, mkApi, backoff)(timer) {
+)(implicit timer: Timer = DefaultTimer) extends EndpointsNamer(idPrefix, mkApi, labelName, backoff)(timer) {
 
   val PrefixLen = 3
   private[this] val variablePrefixLength = PrefixLen + labelName.size
@@ -38,7 +38,7 @@ class MultiNsNamer(
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        lookupServices(nsName, portName, serviceName, id, residual)
+        lookupServices(nsName, portName, serviceName, id, residual, labelSelector)
 
       case (id@Path.Utf8(nsName, portName, serviceName), Some(label)) =>
         log.debug("k8s lookup: ns %s service %s label value segment missing for label %s", nsName, serviceName, portName, label)
@@ -56,7 +56,7 @@ class SingleNsNamer(
   nsName: String,
   mkApi: String => v1.NsApi,
   backoff: Stream[Duration] = Backoff.exponentialJittered(10.milliseconds, 10.seconds)
-)(implicit timer: Timer = DefaultTimer) extends EndpointsNamer(idPrefix, mkApi, backoff)(timer) {
+)(implicit timer: Timer = DefaultTimer) extends EndpointsNamer(idPrefix, mkApi, labelName, backoff)(timer) {
 
   val PrefixLen = 2
   private[this] val variablePrefixLength = PrefixLen + labelName.size
@@ -82,7 +82,7 @@ class SingleNsNamer(
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        lookupServices(nsName, portName, serviceName, id, residual)
+        lookupServices(nsName, portName, serviceName, id, residual, labelSelector)
 
       case (id@Path.Utf8(portName, serviceName), Some(label)) =>
         log.debug("k8s lookup: ns %s service %s label value segment missing for label %s", nsName, serviceName, portName, label)
@@ -97,6 +97,7 @@ class SingleNsNamer(
 abstract class EndpointsNamer(
   idPrefix: Path,
   mkApi: String => v1.NsApi,
+  labelName: Option[String] = None,
   backoff: Stream[Duration] = Backoff.exponentialJittered(10.milliseconds, 10.seconds)
 )(implicit timer: Timer = DefaultTimer) extends Namer {
 
@@ -107,7 +108,8 @@ abstract class EndpointsNamer(
     portName: String,
     serviceName: String,
     id: Path,
-    residual: Path
+    residual: Path,
+    labelSelector: Option[String] = None
   ): Activity[NameTree[Name]] = {
     // wish i didn't have to call initialize then get here, just to get the addrs
     // from the Endpoints object. who wrote this api anyway? /me raises hand. whoops.
@@ -120,7 +122,7 @@ abstract class EndpointsNamer(
     }
     mkApi(nsName)
       .endpoints(serviceName)
-      .activity(toNameTree) { (nameTree, event) =>
+      .activity(labelSelector = labelSelector)(toNameTree) { (nameTree, event) =>
         // and similarly update then get is not great programming either
         cache.update(event)
         cache.get(nsName, portName, serviceName) match {
@@ -144,11 +146,13 @@ class EndpointsCache extends Ns.CacheLike[v1.Endpoints, v1.EndpointsWatch] {
   def initialize(endpoints: v1.Endpoints): Unit =
     synchronized { add(endpoints) }
 
-  def update(watch: v1.EndpointsWatch): Unit = watch match {
-    case v1.EndpointsError(e) => log.error("k8s watch error: %s", e)
-    case v1.EndpointsAdded(endpoints) => add(endpoints)
-    case v1.EndpointsModified(endpoints) => modify(endpoints)
-    case v1.EndpointsDeleted(endpoints) => delete(endpoints)
+  def update(watch: v1.EndpointsWatch): Unit = synchronized {
+    watch match {
+      case v1.EndpointsError(e) => log.error("k8s watch error: %s", e)
+      case v1.EndpointsAdded(endpoints) => add(endpoints)
+      case v1.EndpointsModified(endpoints) => modify(endpoints)
+      case v1.EndpointsDeleted(endpoints) => delete(endpoints)
+    }
   }
 
   def get(nsName: String, portName: String, serviceName: String): Option[Var[Addr]] =
@@ -193,10 +197,9 @@ class EndpointsCache extends Ns.CacheLike[v1.Endpoints, v1.EndpointsWatch] {
           log.info("k8s ns %s modified service: %s; port %s", key.nsName, key.serviceName, key.portName)
           addr.update(modified)
         case None =>
-          log.warning(
-            "k8s ns %s received modified watch for unknown service %s; port %s",
-            key.nsName, key.serviceName, key.portName
-          )
+          log.info(
+            s"k8s ns ${key.nsName} added service ${key.serviceName}; port ${key.portName}")
+          cache += key -> Var(modified)
       }
     }
 

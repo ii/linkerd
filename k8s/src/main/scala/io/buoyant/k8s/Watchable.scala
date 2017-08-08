@@ -167,10 +167,16 @@ private[k8s] abstract class Watchable[O <: KubeObject: TypeReference, W <: Watch
    * @return an [[Activity]]`[T]` updated by [[Watch]] events on this object,
    *         where `T` is the return type of the `onEvent` function
    */
-  def activity[T](convert: G => T)(onEvent: (T, W) => T): Activity[T] =
+  def activity[T](
+    labelSelector: Option[String] = None,
+    fieldSelector: Option[String] = None
+  )(convert: G => T)(onEvent: (T, W) => T): Activity[T] =
     Activity(Var.async[Activity.State[T]](Activity.Pending) { state =>
       val closeRef = new AtomicReference[Closable](Closable.nop)
-      val pending = get(retryIndefinitely = true)
+      val pending = get(
+        labelSelector = labelSelector,
+        fieldSelector = fieldSelector,
+        retryIndefinitely = true)
         // since we're retrying the GET request forever, this `onFailure`
         // should probably never fire. but who knows?
         .onFailure { e =>
@@ -188,7 +194,11 @@ private[k8s] abstract class Watchable[O <: KubeObject: TypeReference, W <: Watch
             initial.metadata.flatMap(_.resourceVersion)
           } else None
 
-          val (stream, close) = watch(None, None, version)
+          val (stream, close) = watch(
+            labelSelector = labelSelector,
+            fieldSelector = fieldSelector,
+            resourceVersion = version
+          )
 
           closeRef.set(close)
           val _ = stream.foldLeft(initialState) { (state0, event) =>
