@@ -208,6 +208,63 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |}"""
     )
 
+    val Auth = Buf.Utf8(
+      """
+        |{
+        |  "metadata": {
+        |    "name": "auth",
+        |    "namespace": "srv",
+        |    "selfLink": "/api/v1/namespaces/srv/endpoints/auth",
+        |    "uid": "6982a2fc-525e-11e5-9859-42010af01815",
+        |    "resourceVersion": "4969546",
+        |    "creationTimestamp": "2015-09-03T17:08:35Z"
+        |  },
+        |  "subsets": [
+        |    {
+        |      "addresses": [
+        |        {
+        |          "ip": "10.248.0.10",
+        |          "targetRef": {
+        |            "kind": "Pod",
+        |            "namespace": "srv",
+        |            "name": "auth-vmcia",
+        |            "uid": "690ef84c-525e-11e5-9859-42010af01815",
+        |            "resourceVersion": "4962519"
+        |          }
+        |        },
+        |        {
+        |          "ip": "10.248.1.9",
+        |          "targetRef": {
+        |            "kind": "Pod",
+        |            "namespace": "srv",
+        |            "name": "auth-d8qnl",
+        |            "uid": "690f06c8-525e-11e5-9859-42010af01815",
+        |            "resourceVersion": "4962570"
+        |          }
+        |        },
+        |        {
+        |          "ip": "10.248.5.9",
+        |          "targetRef": {
+        |            "kind": "Pod",
+        |            "namespace": "srv",
+        |            "name": "auth-m79ya",
+        |            "uid": "690f05df-525e-11e5-9859-42010af01815",
+        |            "resourceVersion": "4962464"
+        |          }
+        |        }
+        |      ],
+        |      "ports": [
+        |        {
+        |          "name": "http",
+        |          "port": 8082,
+        |          "protocol": "TCP"
+        |        }
+        |      ]
+        |    }
+        |  ]
+        |}"""
+    )
+
     val Services = Buf.Utf8("""{"apiVersion":"v1","items":[{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"sessions"},"name":"sessions","namespace":"srv","resourceVersion":"33186979","selfLink":"/api/v1/namespaces/srv/services/sessions","uid":"8122d7d0-1042-11e7-b340-42010af00004"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"sessions"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"ip":"35.184.61.229"}]}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"projects"},"name":"projects","namespace":"srv","resourceVersion":"33186980","selfLink":"/api/v1/namespaces/srv/services/projects","uid":"8122d7d0-1042-11e7-b340-42010af00005"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"projects"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"events"},"name":"events","namespace":"srv","resourceVersion":"33186981","selfLink":"/api/v1/namespaces/srv/services/events","uid":"8122d7d0-1042-11e7-b340-42010af00006"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"events"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"linkerd.io"}]}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"auth"},"name":"auth","namespace":"srv","resourceVersion":"33186981","selfLink":"/api/v1/namespaces/srv/services/auth","uid":"8122d7d0-1042-11e7-b340-42010af00007"},"spec":{"clusterIP":"10.199.240.10","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":"http"},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"auth"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"linkerd.io"}]}}}],"kind":"ServiceList","metadata":{"resourceVersion":"33787896","selfLink":"/api/v1/namespaces/srv/services"}}""")
   }
 
@@ -219,7 +276,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         val rsp = Response()
         rsp.content = Rsps.Init
         doInit before Future.value(rsp)
-      case req if req.uri == WatchPath =>
+      case req if req.uri == WatchPath && doInit.isDone =>
         val rsp = Response()
 
         doScaleUp before rsp.writer.write(Rsps.ScaleUp) before {
@@ -232,6 +289,10 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
         Future.value(rsp)
 
+      case req if req.uri == "/api/v1/namespaces/srv/endpoints/auth" =>
+        val rsp = Response()
+        rsp.content = Rsps.Auth
+        Future.value(rsp)
       case req if req.uri == "/api/v1/watch/namespaces/srv/endpoints/sessions?resourceVersion=5319582" =>
         val rsp = Response()
 
