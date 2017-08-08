@@ -11,8 +11,9 @@ import org.scalatest.exceptions.TestFailedException
 import scala.util.control.NoStackTrace
 
 class EndpointsNamerTest extends FunSuite with Awaits {
-  val WatchPath = "/api/v1/watch/namespaces/srv/endpoints/sessions"
-  val NonWatchPath = "/api/v1/namespaces/srv/endpoints/sessions"
+  val WatchPath = "/api/v1/watch/"
+  val SessionsPath = "namespaces/srv/endpoints/sessions"
+  val NonWatchPath = "/api/v1/"
   object Rsps {
     val InitResourceVersion = "4962526"
     val Init = Buf.Utf8(
@@ -23,7 +24,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |  "metadata": {
         |    "name": "sessions",
         |    "namespace": "srv",
-        |    "selfLink": "$NonWatchPath",
+        |    "selfLink": "$NonWatchPath$SessionsPath",
         |    "uid": "6a698096-525e-11e5-9859-42010af01815",
         |    "resourceVersion": "$InitResourceVersion",
         |    "creationTimestamp": "2015-09-03T17:08:37Z"
@@ -84,7 +85,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |    "metadata": {
         |      "name": "sessions",
         |      "namespace": "srv",
-        |      "selfLink": "$NonWatchPath",
+        |      "selfLink": "$NonWatchPath$SessionsPath",
         |      "uid": "6a698096-525e-11e5-9859-42010af01815",
         |      "resourceVersion": "5319582",
         |      "creationTimestamp": "2015-09-03T17:08:37Z"
@@ -156,7 +157,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |    "metadata": {
         |      "name": "sessions",
         |      "namespace": "srv",
-        |      "selfLink": "$NonWatchPath",
+        |      "selfLink": "$NonWatchPath$SessionsPath",
         |      "uid": "6a698096-525e-11e5-9859-42010af01815",
         |      "resourceVersion": "5319605",
         |      "creationTimestamp": "2015-09-03T17:08:37Z"
@@ -209,13 +210,13 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     )
 
     val Auth = Buf.Utf8(
-      """
+      s"""
         |{
         |  "kind": "Endpoints",
         |  "metadata": {
         |    "name": "auth",
         |    "namespace": "srv",
-        |    "selfLink": "/api/v1/namespaces/srv/endpoints/auth",
+        |    "selfLink": "${NonWatchPath}namespaces/srv/endpoints/auth",
         |    "uid": "6982a2fc-525e-11e5-9859-42010af01815",
         |    "resourceVersion": "4969546",
         |    "creationTimestamp": "2015-09-03T17:08:35Z"
@@ -263,16 +264,17 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |      ]
         |    }
         |  ]
-        |}"""
+        |}
+        |""".stripMargin
     )
     val Projects = Buf.Utf8(
-      """
+      s"""
         |{
         |  "kind": "Endpoints",
         |  "metadata": {
         |    "name": "projects",
         |    "namespace": "srv",
-        |    "selfLink": "/api/v1/namespaces/srv/endpoints/projects",
+        |    "selfLink": "${NonWatchPath}namespaces/srv/endpoints/projects",
         |    "uid": "6c39393c-525e-11e5-9859-42010af01815",
         |    "resourceVersion": "4962611",
         |    "creationTimestamp": "2015-09-03T17:08:40Z"
@@ -324,13 +326,13 @@ class EndpointsNamerTest extends FunSuite with Awaits {
       """.stripMargin
     )
     val Events = Buf.Utf8(
-      """
+      s"""
         |{
         |  "kind": "Endpoints",
         |  "metadata": {
         |    "name": "events",
         |    "namespace": "srv",
-        |    "selfLink": "/api/v1/namespaces/srv/endpoints/events",
+        |    "selfLink": "${NonWatchPath}namespaces/srv/endpoints/events",
         |    "uid": "67abfc86-525e-11e5-9859-42010af01815",
         |    "resourceVersion": "4962380",
         |    "creationTimestamp": "2015-09-03T17:08:32Z"
@@ -388,11 +390,11 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     @volatile var doInit, didInit, doScaleUp, doScaleDown, doFail = new Promise[Unit]
 
     val service = Service.mk[Request, Response] {
-      case req if req.uri == NonWatchPath =>
+      case req if req.uri == s"$NonWatchPath$SessionsPath" =>
         val rsp = Response()
         rsp.content = Rsps.Init
         doInit before Future.value(rsp)
-      case req if req.uri == WatchPath && doInit.isDone =>
+      case req if req.uri == s"$WatchPath$SessionsPath" && doInit.isDone =>
         val rsp = Response()
 
         doScaleUp before rsp.writer.write(Rsps.ScaleUp) before {
@@ -417,7 +419,10 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         val rsp = Response()
         rsp.content = Rsps.Events
         Future.value(rsp)
-      case req if req.uri == "/api/v1/watch/namespaces/srv/endpoints/sessions?resourceVersion=5319582" =>
+      case req if req.uri.startsWith(WatchPath) && !req.uri.contains("sessions") =>
+        val rsp = Response()
+        Future.value(rsp)
+      case req if req.uri == s"${WatchPath}{$SessionsPath}resourceVersion=5319582" =>
         val rsp = Response()
 
         doScaleDown before rsp.writer.write(Rsps.ScaleDown)
