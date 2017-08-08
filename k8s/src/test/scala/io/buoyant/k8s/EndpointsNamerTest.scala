@@ -3,8 +3,9 @@ package io.buoyant.k8s
 import com.twitter.conversions.time._
 import com.twitter.finagle._
 import com.twitter.finagle.http.{Request, Response}
-import com.twitter.io.Buf
+import com.twitter.io.{Buf, Writer}
 import com.twitter.util._
+import io.buoyant.namer.RichActivity
 import io.buoyant.test.Awaits
 import org.scalatest.FunSuite
 import org.scalatest.exceptions.TestFailedException
@@ -26,7 +27,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |    "namespace": "srv",
         |    "selfLink": "$NonWatchPath$SessionsPath",
         |    "uid": "6a698096-525e-11e5-9859-42010af01815",
-        |    "resourceVersion": "$InitResourceVersion",
+        |    "resourceVersion": "4962526",
         |    "creationTimestamp": "2015-09-03T17:08:37Z"
         |  },
         |  "subsets": [
@@ -144,7 +145,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |      }
         |    ]
         |  }
-        |}"""
+        |}""".stripMargin
     )
 
     val ScaleDown = Buf.Utf8(
@@ -206,7 +207,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |      }
         |    ]
         |  }
-        |}"""
+        |}""".stripMargin
     )
 
     val Auth = Buf.Utf8(
@@ -388,21 +389,25 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
   trait Fixtures {
     @volatile var doInit, didInit, doScaleUp, doScaleDown, doFail = new Promise[Unit]
+    @volatile var writer: Writer = null
 
     val service = Service.mk[Request, Response] {
       case req if req.uri == s"$NonWatchPath$SessionsPath" =>
         val rsp = Response()
         rsp.content = Rsps.Init
         doInit before Future.value(rsp)
-      case req if req.uri == s"$WatchPath$SessionsPath" && doInit.isDone =>
+      case req if req.uri == s"$WatchPath$SessionsPath" =>
         val rsp = Response()
 
-        doScaleUp before rsp.writer.write(Rsps.ScaleUp) before {
-          doScaleDown before rsp.writer.write(Rsps.ScaleDown)
+        rsp.setChunked(true)
+
+        writer = rsp.writer
+        doScaleUp before writer.write(Rsps.ScaleUp) before {
+          doScaleDown before writer.write(Rsps.ScaleDown)
         }
 
         doFail onSuccess { _ =>
-          rsp.writer.fail(new ChannelClosedException)
+          writer.fail(new ChannelClosedException)
         }
 
         Future.value(rsp)
@@ -448,9 +453,10 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
     @volatile var stateUpdates: Int = 0
     @volatile var state: Activity.State[NameTree[Name]] = Activity.Pending
-    val _ = namer.lookup(Path.read(name)).states.respond { s =>
-      state = s
-      stateUpdates += 1
+    val activity = namer.lookup(Path.read(name))
+    val _ = activity.states.respond { s =>
+        state = s
+        stateUpdates += 1
     }
 
     def addrs = state match {
