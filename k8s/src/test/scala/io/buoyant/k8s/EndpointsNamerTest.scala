@@ -142,7 +142,9 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |        ]
         |      }
         |    ]
-        |""")
+        |  }
+        |}"""
+    )
 
     val ScaleDown = Buf.Utf8(
       s"""
@@ -203,7 +205,8 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         |      }
         |    ]
         |  }
-        |}""")
+        |}"""
+    )
 
     val Services = Buf.Utf8("""{"apiVersion":"v1","items":[{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"sessions"},"name":"sessions","namespace":"srv","resourceVersion":"33186979","selfLink":"/api/v1/namespaces/srv/services/sessions","uid":"8122d7d0-1042-11e7-b340-42010af00004"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"sessions"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"ip":"35.184.61.229"}]}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"projects"},"name":"projects","namespace":"srv","resourceVersion":"33186980","selfLink":"/api/v1/namespaces/srv/services/projects","uid":"8122d7d0-1042-11e7-b340-42010af00005"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"projects"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"events"},"name":"events","namespace":"srv","resourceVersion":"33186981","selfLink":"/api/v1/namespaces/srv/services/events","uid":"8122d7d0-1042-11e7-b340-42010af00006"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"events"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"linkerd.io"}]}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"auth"},"name":"auth","namespace":"srv","resourceVersion":"33186981","selfLink":"/api/v1/namespaces/srv/services/auth","uid":"8122d7d0-1042-11e7-b340-42010af00007"},"spec":{"clusterIP":"10.199.240.10","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":"http"},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"auth"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"linkerd.io"}]}}}],"kind":"ServiceList","metadata":{"resourceVersion":"33787896","selfLink":"/api/v1/namespaces/srv/services"}}""")
   }
@@ -236,7 +239,16 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
         Future.value(rsp)
       case req =>
-        fail(s"unexpected request: $req")
+        // As a workaround for an issue where some tests would enter an
+        // infinite retry loop rather than failing, manually throw a
+        // `TestFailedException` rather than calling `fail()`.
+        //
+        // `fail()` may provide slightly more useful information about
+        // the failure location, but there was a concurrency issue where
+        // the namer would keep retrying infinitely even after `fail()` was
+        // called, causing SBT to hang. curiously, this issue doesn't seem
+        // to apply when tests are run from IntelliJ?
+        throw new TestFailedException(s"unexpected request: $req", 1)
     }
     val api = v1.Api(service)
     val timer = new MockTimer
@@ -258,7 +270,8 @@ class EndpointsNamerTest extends FunSuite with Awaits {
             addrs
           case addr =>
             throw new TestFailedException(
-              s"expected bound addr, got $addr (after $stateUpdates state updates)", 1)
+              s"expected bound addr, got $addr (after $stateUpdates state updates)", 1
+            )
         }
       case v =>
         throw new TestFailedException(s"unexpected state: $v (after $stateUpdates state updates)", 1)
@@ -266,6 +279,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
     def assertHas(n: Int) =
       assert(addrs.size == n, s" (after $stateUpdates state updates)")
+    def assertUpdates(n: Int) = assert(stateUpdates == n)
   }
 
   test("single ns namer uses passed in namespace") {
@@ -285,7 +299,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         Future.value(rsp)
 
       case req =>
-        fail(s"unexpected request: $req")
+        throw new TestFailedException(s"unexpected request: $req", 1)
     }
 
     val api = v1.Api(service)
@@ -359,7 +373,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         Future.value(rsp)
 
       case req =>
-        fail(s"unexpected request: $req")
+        throw new TestFailedException(s"unexpected request: $req", 1)
     }
     val api = v1.Api(service)
     val namer = new MultiNsNamer(Path.read("/test"), None, api.withNamespace)
@@ -413,7 +427,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         rsp.content = Rsps.Services
         Future.value(rsp)
       case r =>
-        fail(s"unexpected request: $r")
+        throw new TestFailedException(s"unexpected request: $r", 1)
     }
 
     val api = v1.Api(service)
