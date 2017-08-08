@@ -257,14 +257,15 @@ class EndpointsNamerTest extends FunSuite with Awaits {
           case Addr.Bound(addrs, _) =>
             addrs
           case addr =>
-            throw new TestFailedException(s"expected bound addr, got $addr", 1)
+            throw new TestFailedException(
+              s"expected bound addr, got $addr (after $stateUpdates state updates)", 1)
         }
       case v =>
-        throw new TestFailedException(s"unexpected state: $v", 1)
+        throw new TestFailedException(s"unexpected state: $v (after $stateUpdates state updates)", 1)
     }
 
     def assertHas(n: Int) =
-      assert(addrs.size == n)
+      assert(addrs.size == n, s" (after $stateUpdates state updates)")
   }
 
   test("single ns namer uses passed in namespace") {
