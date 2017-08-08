@@ -84,7 +84,7 @@ class IngressCache(namespace: Option[String], apiClient: Service[Request, Respon
   }
 
   private[this] lazy val ingresses: Activity[Seq[IngressSpec]] = {
-    val act = api.activity()(_.items.flatMap(mkIngress)) {
+    val act = api.activity(_.items.flatMap(mkIngress)) {
       (ingresses, watchEvent) =>
         watchEvent match {
           case v1beta1.IngressAdded(a) => ingresses ++ mkIngress(a)

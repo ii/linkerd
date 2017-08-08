@@ -122,7 +122,7 @@ abstract class EndpointsNamer(
     }
     mkApi(nsName)
       .endpoints(serviceName)
-      .activity(labelSelector = labelSelector)(toNameTree) { (nameTree, event) =>
+      .activity(toNameTree, labelSelector = labelSelector) { (nameTree, event) =>
         // and similarly update then get is not great programming either
         cache.update(event)
         cache.get(nsName, portName, serviceName) match {

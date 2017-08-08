@@ -168,9 +168,10 @@ private[k8s] abstract class Watchable[O <: KubeObject: TypeReference, W <: Watch
    *         where `T` is the return type of the `onEvent` function
    */
   def activity[T](
+    convert: G => T,
     labelSelector: Option[String] = None,
     fieldSelector: Option[String] = None
-  )(convert: G => T)(onEvent: (T, W) => T): Activity[T] =
+  )(onEvent: (T, W) => T): Activity[T] =
     Activity(Var.async[Activity.State[T]](Activity.Pending) { state =>
       val closeRef = new AtomicReference[Closable](Closable.nop)
       val pending = get(
