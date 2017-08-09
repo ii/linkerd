@@ -11,11 +11,12 @@ class MultiNsNamer(
   idPrefix: Path,
   labelName: Option[String],
   mkApi: String => v1.NsApi,
-  backoff: Stream[Duration] = Backoff.exponentialJittered(10.milliseconds, 10.seconds)
-)(implicit timer: Timer = DefaultTimer) extends EndpointsNamer(idPrefix, mkApi, labelName, backoff)(timer) {
+  backoff: Stream[Duration] = EndpointsNamer.DefaultBackoff
+)(implicit timer: Timer = DefaultTimer)
+  extends EndpointsNamer(idPrefix, mkApi, labelName, backoff)(timer) {
 
-  val PrefixLen = 3
-  private[this] val variablePrefixLength = PrefixLen + labelName.size
+  protected[this] override val variablePrefixLength: Int =
+    MultiNsNamer.PrefixLen + labelName.size
 
   /**
    * Accepts names in the form:
@@ -50,16 +51,21 @@ class MultiNsNamer(
   }
 }
 
+object MultiNsNamer {
+  protected val PrefixLen = 3
+}
+
 class SingleNsNamer(
   idPrefix: Path,
   labelName: Option[String],
   nsName: String,
   mkApi: String => v1.NsApi,
-  backoff: Stream[Duration] = Backoff.exponentialJittered(10.milliseconds, 10.seconds)
-)(implicit timer: Timer = DefaultTimer) extends EndpointsNamer(idPrefix, mkApi, labelName, backoff)(timer) {
+  backoff: Stream[Duration] = EndpointsNamer.DefaultBackoff
+)(implicit timer: Timer = DefaultTimer)
+  extends EndpointsNamer(idPrefix, mkApi, labelName, backoff)(timer) {
 
-  val PrefixLen = 2
-  private[this] val variablePrefixLength = PrefixLen + labelName.size
+  protected[this] override val variablePrefixLength: Int =
+    SingleNsNamer.PrefixLen + labelName.size
 
   /**
    * Accepts names in the form:
@@ -94,14 +100,18 @@ class SingleNsNamer(
   }
 }
 
+object SingleNsNamer {
+  protected val PrefixLen = 2
+}
+
 abstract class EndpointsNamer(
   idPrefix: Path,
   mkApi: String => v1.NsApi,
   labelName: Option[String] = None,
-  backoff: Stream[Duration] = Backoff.exponentialJittered(10.milliseconds, 10.seconds)
+  backoff: Stream[Duration] = EndpointsNamer.DefaultBackoff
 )(implicit timer: Timer = DefaultTimer) extends Namer {
-
   val cache = new EndpointsCache
+  protected[this] val variablePrefixLength: Int
 
   private[k8s] def lookupServices(
     nsName: String,
@@ -131,6 +141,11 @@ abstract class EndpointsNamer(
         }
       }
   }
+}
+
+object EndpointsNamer {
+  val DefaultBackoff: Stream[Duration] =
+    Backoff.exponentialJittered(10.milliseconds, 10.seconds)
 }
 
 class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
