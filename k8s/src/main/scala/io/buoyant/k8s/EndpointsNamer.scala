@@ -135,11 +135,9 @@ abstract class EndpointsNamer(
 
 class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
 
-  private[this] case class CacheKey(nsName: String, portName: String, serviceName: String)
+  import EndpointsCache._
 
-  private[this] case class PortAddr(portName: String, addr: Address)
-
-  private[this]type VarUp[T] = Var[T] with Updatable[T]
+  private[this] type VarUp[T] = Var[T] with Updatable[T]
 
   private[this] var cache = Map.empty[CacheKey, VarUp[Addr]]
 
@@ -158,38 +156,6 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
   def get(nsName: String, portName: String, serviceName: String): Option[Var[Addr]] =
     cache.get(CacheKey(nsName, portName, serviceName))
 
-  /**
-   * Convert a [[v1.Endpoints]] object to a map of `(namespace, port, service) -> Address`
-   *
-   * @param endpoints
-   * @return
-   */
-  private[this] def toMap(endpoints: v1.Endpoints): Map[CacheKey, Addr] = {
-    val endpointMap = mutable.Map.empty[CacheKey, Addr]
-    for {
-      metadata <- endpoints.metadata
-      namespace <- metadata.namespace
-      name <- metadata.name
-    } {
-      val portsAndAddrs = for {
-        subset <- endpoints.subsetsSeq
-        address <- subset.addressesSeq
-        port <- subset.portsSeq
-        portName <- port.name
-      } yield PortAddr(portName, Address(address.ip, port.port))
-
-      portsAndAddrs
-        .groupBy(_.portName)
-        .mapValues {
-          _.map(_.addr)
-        }
-        .foreach { case (portName, addresses) =>
-          val key = CacheKey(namespace, portName, name)
-          endpointMap(key) = Addr.Bound(addresses: _*)
-        }
-    }
-    endpointMap.toMap
-  }
 
   private[this] def add(endpoints: v1.Endpoints): Unit =
     for { (key, addr) <- toMap(endpoints) } synchronized {
@@ -221,4 +187,44 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
           )
       }
     }
+}
+
+object EndpointsCache {
+
+  private case class PortAddr(portName: String, addr: Address)
+
+  private case class CacheKey(nsName: String, portName: String, serviceName: String)
+
+  /**
+   * Convert a [[v1.Endpoints]] object to a map of `(namespace, port, service) -> Address`
+   *
+   * @param endpoints
+   * @return
+   */
+  private def toMap(endpoints: v1.Endpoints): Map[CacheKey, Addr] = {
+    val endpointMap = mutable.Map.empty[CacheKey, Addr]
+    for {
+      metadata <- endpoints.metadata
+      namespace <- metadata.namespace
+      name <- metadata.name
+    } {
+      val portsAndAddrs = for {
+        subset <- endpoints.subsetsSeq
+        address <- subset.addressesSeq
+        port <- subset.portsSeq
+        portName <- port.name
+      } yield PortAddr(portName, Address(address.ip, port.port))
+
+      portsAndAddrs
+        .groupBy(_.portName)
+        .mapValues {
+          _.map(_.addr)
+        }
+        .foreach { case (portName, addresses) =>
+          val key = CacheKey(namespace, portName, name)
+          endpointMap(key) = Addr.Bound(addresses: _*)
+        }
+    }
+    endpointMap.toMap
+  }
 }
