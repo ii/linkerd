@@ -5,7 +5,7 @@ import com.twitter.finagle.{Service => _, _}
 import com.twitter.finagle.service.Backoff
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.util._
-import io.buoyant.k8s.Ns.ObjectCache
+import io.buoyant.k8s.Ns.ObjectListCache
 import io.buoyant.k8s.v1._
 import java.net.InetSocketAddress
 import scala.collection.mutable
@@ -67,7 +67,7 @@ class ServiceNamer(
 }
 
 class ServiceCache(namespace: String)
-  extends ObjectCache[Service, ServiceWatch, ServiceList] {
+  extends ObjectListCache[Service, ServiceWatch, ServiceList] {
 
   /**
    * We can stabilize this by changing the type to Var[Option[Var[T]]].

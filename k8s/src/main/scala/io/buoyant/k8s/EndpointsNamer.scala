@@ -133,7 +133,7 @@ abstract class EndpointsNamer(
   }
 }
 
-class EndpointsCache extends Ns.CacheLike[v1.Endpoints, v1.EndpointsWatch] {
+class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
 
   private[this] case class CacheKey(nsName: String, portName: String, serviceName: String)
 
