@@ -153,13 +153,13 @@ package object v1 {
   ) {
     @JsonIgnore
     @inline
-    def addressesSeq: Seq[EndpointAddress]
-    = addresses.getOrElse(Seq())
+    def addressesSeq: Seq[EndpointAddress] =
+      addresses.getOrElse(Seq())
 
     @JsonIgnore
     @inline
-    def portsSeq: Seq[EndpointPort]
-    = ports.getOrElse(Seq())
+    def portsSeq: Seq[EndpointPort] =
+      ports.getOrElse(Seq())
   }
 
   case class EndpointAddress(

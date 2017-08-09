@@ -121,32 +121,30 @@ abstract class EndpointsNamer(
     residual: Path,
     labelSelector: Option[String] = None
   ): Activity[NameTree[Name]] = {
+    def lookup: NameTree[Name] = {
+      val addrLookup = Try(portName.toInt).toOption match {
+        case Some(portNum) =>
+          cache.getNumberedPort(nsName, serviceName, portNum)
+        case None =>
+          cache.get(nsName, portName, serviceName)
+      }
+      addrLookup
+        .map { addr => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual)) }
+        .getOrElse(NameTree.Neg)
+    }
+
     // wish i didn't have to call initialize then get here, just to get the addrs
     // from the Endpoints object. who wrote this api anyway? /me raises hand. whoops.
     val toNameTree: v1.Endpoints => NameTree[Name] = endpoints => {
       cache.initialize(endpoints)
-      cache.get(nsName, portName, serviceName) match {
-        case Some(addr) => Try(portName.toInt).toOption
-          .flatMap { portNum => ??? }
-          .getOrElse {
-            NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
-          }
-        case None => NameTree.Neg
-      }
+      lookup
     }
     mkApi(nsName)
       .endpoints(serviceName)
       .activity(toNameTree, labelSelector = labelSelector) { (nameTree, event) =>
         // and similarly update then get is not great programming either
         cache.update(event)
-        cache.get(nsName, portName, serviceName) match {
-          case Some(addr) => Try(portName.toInt).toOption
-            .flatMap { portNum => ??? }
-            .getOrElse {
-              NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
-            }
-          case None => NameTree.Neg
-        }
+        lookup
       }
   }
 }
@@ -163,9 +161,15 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
   private[this] type VarUp[T] = Var[T] with Updatable[T]
 
   private[this] var cache = Map.empty[CacheKey, VarUp[Addr]]
+  private[this] var portNameCache = Map.empty[Int, String]
+
+  def getNumberedPort(nsName: String, serviceName: String, portNumber: Int): Option[VarUp[Addr]]
+  = portNameCache.get(portNumber).flatMap { portName =>
+    cache.get(CacheKey(nsName, portName, serviceName))
+  }
 
   def initialize(endpoints: v1.Endpoints): Unit =
-    synchronized { add(endpoints) }
+    add(endpoints)
 
   override def update(watch: v1.EndpointsWatch): Unit =
     watch match {
@@ -179,14 +183,24 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
     cache.get(CacheKey(nsName, portName, serviceName))
 
 
-  private[this] def add(endpoints: v1.Endpoints): Unit =
-    for { (key, addr) <- toMap(endpoints) } synchronized {
+  private[this] def add(endpoints: v1.Endpoints): Unit = {
+    val (endpointsMap, portsMap) = toMap(endpoints)
+    for {(key, addr) <- endpointsMap} synchronized {
       log.debug("k8s ns %s added service: %s; port: %s", key.nsName, key.serviceName, key.portName)
       cache += key -> Var(addr)
     }
+    for {(num, name) <- portsMap} synchronized {
+      // TODO: this could just be `portNameCache ++= portsMap`, but I
+      //       thought the logging was nice?
+      log.debug(s"k8s ns %s added port '$name' -> $num")
+      portNameCache += num -> name
+    }
+  }
 
-  private[this] def modify(endpoints: v1.Endpoints): Unit =
-    for { (key, modified) <- toMap(endpoints) } synchronized {
+
+  private[this] def modify(endpoints: v1.Endpoints): Unit = {
+    val (endpointsMap, portsMap) = toMap(endpoints)
+    for {(key, modified) <- endpointsMap} synchronized {
       cache.get(key) match {
         case Some(addr) =>
           log.info("k8s ns %s modified service: %s; port %s", key.nsName, key.serviceName, key.portName)
@@ -197,9 +211,17 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
           cache += key -> Var(modified)
       }
     }
+    for {(num, name) <- portsMap} synchronized {
+      log.info(s"k8s modified port '$name' -> $num")
+      // TODO: this could just be `portNameCache ++= portsMap`, but I
+      //       thought the logging was nice?
+      portNameCache += (num -> name)
+    }
+  }
 
-  private[this] def delete(endpoints: v1.Endpoints): Unit =
-    for { (key, _) <- toMap(endpoints) } synchronized {
+  private[this] def delete(endpoints: v1.Endpoints): Unit = {
+    val (endpointsMap, portsMap) = toMap(endpoints)
+    for {(key, _) <- endpointsMap} synchronized {
       cache.get(key) match {
         case Some(addr) => addr.update(Addr.Neg)
         case None =>
@@ -209,6 +231,10 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
           )
       }
     }
+    for {(key, _) <- portsMap} synchronized {
+      portNameCache -= key
+    }
+  }
 }
 
 object EndpointsCache {
@@ -223,8 +249,9 @@ object EndpointsCache {
    * @param endpoints
    * @return
    */
-  private def toMap(endpoints: v1.Endpoints): Map[CacheKey, Addr] = {
+  private def toMap(endpoints: v1.Endpoints): (Map[CacheKey, Addr], Map[Int, String]) = {
     val endpointMap = mutable.Map.empty[CacheKey, Addr]
+    val portNamesMap = mutable.Map.empty[Int, String]
     for {
       metadata <- endpoints.metadata
       namespace <- metadata.namespace
@@ -235,8 +262,11 @@ object EndpointsCache {
         address <- subset.addressesSeq
         port <- subset.portsSeq
         portName <- port.name
-      } yield PortAddr(portName, Address(address.ip, port.port))
-
+        portNum = port.port
+      } yield {
+        portNamesMap(portNum) = portName
+        PortAddr(portName, Address(address.ip, portNum))
+      }
       portsAndAddrs
         .groupBy(_.portName)
         .mapValues {
@@ -247,6 +277,6 @@ object EndpointsCache {
           endpointMap(key) = Addr.Bound(addresses: _*)
         }
     }
-    endpointMap.toMap
+    (endpointMap.toMap, portNamesMap.toMap)
   }
 }
