@@ -28,10 +28,16 @@ private[telemetry] class StatsDStatsReceiver(
   }
   private[statsd] def close(): Unit = statsDClient.stop()
 
+  private[this] val counters = new ConcurrentHashMap[String, Metric.Counter].asScala
   private[this] val gauges = new ConcurrentHashMap[String, Metric.Gauge].asScala
+  private[this] val stats = new ConcurrentHashMap[String, Metric.Stat].asScala
 
   protected[this] def registerGauge(name: Seq[String], f: => Float): Unit = {
     val statsDName = mkName(name)
+    if (gauges.contains(statsDName)) {
+      deregisterGauge(name)
+    }
+
     gauges(statsDName) = new Metric.Gauge(statsDClient, statsDName, f)
   }
 
@@ -39,10 +45,19 @@ private[telemetry] class StatsDStatsReceiver(
     val _ = gauges.remove(mkName(name))
   }
 
-  def counter(name: String*): Counter =
-    new Metric.Counter(statsDClient, mkName(name), sampleRate)
+  def counter(name: String*): Counter = {
+    val statsDName = mkName(name)
+    if (!counters.contains(statsDName)) {
+      counters(statsDName) = new Metric.Counter(statsDClient, statsDName, sampleRate)
+    }
+    counters(statsDName)
+  }
 
-  def stat(name: String*): Stat =
-    new Metric.Stat(statsDClient, mkName(name), sampleRate)
-
+  def stat(name: String*): Stat = {
+    val statsDName = mkName(name)
+    if (!stats.contains(statsDName)) {
+      stats(statsDName) = new Metric.Stat(statsDClient, statsDName, sampleRate)
+    }
+    stats(statsDName)
+  }
 }
