@@ -133,8 +133,6 @@ abstract class EndpointsNamer(
   }
 }
 
-// maybe this shouldn't extend ObjectCache? that trait assumes that there's a list endpoint
-// for initialization, but we're never calling the list endpoint for... endpoints.
 class EndpointsCache extends Ns.CacheLike[v1.Endpoints, v1.EndpointsWatch] {
 
   private[this] case class CacheKey(nsName: String, portName: String, serviceName: String)
@@ -179,9 +177,10 @@ class EndpointsCache extends Ns.CacheLike[v1.Endpoints, v1.EndpointsWatch] {
     (for {
       subset <- subsets.getOrElse(Nil)
       address <- subset.addresses.getOrElse(Nil)
-      port <- subset.ports.getOrElse(Nil) if port.name.isDefined
+      port <- subset.ports.getOrElse(Nil)
+      portName <- port.name
     } yield {
-      (port.name.get, Address(address.ip, port.port))
+      (portName, Address(address.ip, port.port))
     }).groupBy(_._1).mapValues(_.map(_._2))
 
   private[this] def add(endpoints: v1.Endpoints): Unit =
