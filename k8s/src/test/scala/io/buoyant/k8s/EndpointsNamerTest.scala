@@ -21,369 +21,399 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
     val Init = Buf.Utf8(
       s"""
-        |{
-        |  "kind": "Endpoints",
-        |  "apiVersion": "v1",
-        |  "metadata": {
-        |    "name": "sessions",
-        |    "namespace": "srv",
-        |    "selfLink": "$NonWatchPath$SessionsPath",
-        |    "uid": "6a698096-525e-11e5-9859-42010af01815",
-        |    "resourceVersion": "4962526",
-        |    "creationTimestamp": "2015-09-03T17:08:37Z"
-        |  },
-        |  "subsets": [
-        |    {
-        |      "addresses": [
-        |        {
-        |          "ip": "10.248.4.9",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "sessions-293kc",
-        |            "uid": "69f5a7d2-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962471"
-        |          }
-        |        },
-        |        {
-        |          "ip": "10.248.7.11",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "sessions-mr9gb",
-        |            "uid": "69f5b78e-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962524"
-        |          }
-        |        },
-        |        {
-        |          "ip": "10.248.8.9",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "sessions-nicom",
-        |            "uid": "69f5b623-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962517"
-        |          }
-        |        }
-        |      ],
-        |      "ports": [
-        |        {
-        |          "name": "http",
-        |          "port": 8083,
-        |          "protocol": "TCP"
-        |        }
-        |      ]
-        |    }
-        |  ]
-        |}""".stripMargin
+         |{
+         |  "kind": "Endpoints",
+         |  "apiVersion": "v1",
+         |  "metadata": {
+         |    "name": "sessions",
+         |    "namespace": "srv",
+         |    "selfLink": "$NonWatchPath$SessionsPath",
+         |    "uid": "6a698096-525e-11e5-9859-42010af01815",
+         |    "resourceVersion": "4962526",
+         |    "creationTimestamp": "2015-09-03T17:08:37Z"
+         |  },
+         |  "subsets": [
+         |    {
+         |      "addresses": [
+         |        {
+         |          "ip": "10.248.4.9",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "sessions-293kc",
+         |            "uid": "69f5a7d2-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962471"
+         |          }
+         |        },
+         |        {
+         |          "ip": "10.248.7.11",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "sessions-mr9gb",
+         |            "uid": "69f5b78e-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962524"
+         |          }
+         |        },
+         |        {
+         |          "ip": "10.248.8.9",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "sessions-nicom",
+         |            "uid": "69f5b623-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962517"
+         |          }
+         |        }
+         |      ],
+         |      "ports": [
+         |        {
+         |          "name": "http",
+         |          "port": 8083,
+         |          "protocol": "TCP"
+         |        },
+         |        {
+         |          "name": "admin",
+         |          "port": 9990,
+         |          "protocol": "TCP"
+         |        }
+         |      ]
+         |    }
+         |  ]
+         |}""".stripMargin
     )
 
     val ScaleUp = Buf.Utf8(
       s"""
-        |{
-        |  "type": "MODIFIED",
-        |  "object": {
-        |    "kind": "Endpoints",
-        |    "apiVersion": "v1",
-        |    "metadata": {
-        |      "name": "sessions",
-        |      "namespace": "srv",
-        |      "selfLink": "$NonWatchPath$SessionsPath",
-        |      "uid": "6a698096-525e-11e5-9859-42010af01815",
-        |      "resourceVersion": "5319582",
-        |      "creationTimestamp": "2015-09-03T17:08:37Z"
-        |    },
-        |    "subsets": [
-        |      {
-        |        "addresses": [
-        |          {
-        |            "ip": "10.248.1.11",
-        |            "targetRef": {
-        |              "kind": "Pod",
-        |              "namespace": "srv",
-        |              "name": "sessions-09ujq",
-        |              "uid": "669b7a4f-55ef-11e5-a801-42010af08a01",
-        |              "resourceVersion": "5319581"
-        |            }
-        |          },
-        |          {
-        |            "ip": "10.248.4.9",
-        |            "targetRef": {
-        |              "kind": "Pod",
-        |              "namespace": "srv",
-        |              "name": "sessions-293kc",
-        |              "uid": "69f5a7d2-525e-11e5-9859-42010af01815",
-        |              "resourceVersion": "4962471"
-        |            }
-        |          },
-        |          {
-        |            "ip": "10.248.7.11",
-        |            "targetRef": {
-        |              "kind": "Pod",
-        |              "namespace": "srv",
-        |              "name": "sessions-mr9gb",
-        |              "uid": "69f5b78e-525e-11e5-9859-42010af01815",
-        |              "resourceVersion": "4962524"
-        |            }
-        |          },
-        |          {
-        |            "ip": "10.248.8.9",
-        |            "targetRef": {
-        |              "kind": "Pod",
-        |              "namespace": "srv",
-        |              "name": "sessions-nicom",
-        |              "uid": "69f5b623-525e-11e5-9859-42010af01815",
-        |              "resourceVersion": "4962517"
-        |            }
-        |          }
-        |        ],
-        |        "ports": [
-        |          {
-        |            "name": "http",
-        |            "port": 8083,
-        |            "protocol": "TCP"
-        |          }
-        |        ]
-        |      }
-        |    ]
-        |  }
-        |}""".stripMargin
+         |{
+         |  "type": "MODIFIED",
+         |  "object": {
+         |    "kind": "Endpoints",
+         |    "apiVersion": "v1",
+         |    "metadata": {
+         |      "name": "sessions",
+         |      "namespace": "srv",
+         |      "selfLink": "$NonWatchPath$SessionsPath",
+         |      "uid": "6a698096-525e-11e5-9859-42010af01815",
+         |      "resourceVersion": "5319582",
+         |      "creationTimestamp": "2015-09-03T17:08:37Z"
+         |    },
+         |    "subsets": [
+         |      {
+         |        "addresses": [
+         |          {
+         |            "ip": "10.248.1.11",
+         |            "targetRef": {
+         |              "kind": "Pod",
+         |              "namespace": "srv",
+         |              "name": "sessions-09ujq",
+         |              "uid": "669b7a4f-55ef-11e5-a801-42010af08a01",
+         |              "resourceVersion": "5319581"
+         |            }
+         |          },
+         |          {
+         |            "ip": "10.248.4.9",
+         |            "targetRef": {
+         |              "kind": "Pod",
+         |              "namespace": "srv",
+         |              "name": "sessions-293kc",
+         |              "uid": "69f5a7d2-525e-11e5-9859-42010af01815",
+         |              "resourceVersion": "4962471"
+         |            }
+         |          },
+         |          {
+         |            "ip": "10.248.7.11",
+         |            "targetRef": {
+         |              "kind": "Pod",
+         |              "namespace": "srv",
+         |              "name": "sessions-mr9gb",
+         |              "uid": "69f5b78e-525e-11e5-9859-42010af01815",
+         |              "resourceVersion": "4962524"
+         |            }
+         |          },
+         |          {
+         |            "ip": "10.248.8.9",
+         |            "targetRef": {
+         |              "kind": "Pod",
+         |              "namespace": "srv",
+         |              "name": "sessions-nicom",
+         |              "uid": "69f5b623-525e-11e5-9859-42010af01815",
+         |              "resourceVersion": "4962517"
+         |            }
+         |          }
+         |        ],
+         |        "ports": [
+         |          {
+         |            "name": "http",
+         |            "port": 8083,
+         |            "protocol": "TCP"
+         |          },
+         |          {
+         |            "name": "admin",
+         |            "port": 9990,
+         |            "protocol": "TCP"
+         |          }
+         |        ]
+         |      }
+         |    ]
+         |  }
+         |}""".stripMargin
     )
 
     val ScaleDown = Buf.Utf8(
       s"""
-        |{
-        |  "type": "MODIFIED",
-        |  "object": {
-        |    "kind": "Endpoints",
-        |    "apiVersion": "v1",
-        |    "metadata": {
-        |      "name": "sessions",
-        |      "namespace": "srv",
-        |      "selfLink": "$NonWatchPath$SessionsPath",
-        |      "uid": "6a698096-525e-11e5-9859-42010af01815",
-        |      "resourceVersion": "5319605",
-        |      "creationTimestamp": "2015-09-03T17:08:37Z"
-        |    },
-        |    "subsets": [
-        |      {
-        |        "addresses": [
-        |          {
-        |            "ip": "10.248.4.9",
-        |            "targetRef": {
-        |              "kind": "Pod",
-        |              "namespace": "srv",
-        |              "name": "sessions-293kc",
-        |              "uid": "69f5a7d2-525e-11e5-9859-42010af01815",
-        |              "resourceVersion": "4962471"
-        |            }
-        |          },
-        |          {
-        |            "ip": "10.248.7.11",
-        |            "targetRef": {
-        |              "kind": "Pod",
-        |              "namespace": "srv",
-        |              "name": "sessions-mr9gb",
-        |              "uid": "69f5b78e-525e-11e5-9859-42010af01815",
-        |              "resourceVersion": "4962524"
-        |            }
-        |          },
-        |          {
-        |            "ip": "10.248.8.9",
-        |            "targetRef": {
-        |              "kind": "Pod",
-        |              "namespace": "srv",
-        |              "name": "sessions-nicom",
-        |              "uid": "69f5b623-525e-11e5-9859-42010af01815",
-        |              "resourceVersion": "4962517"
-        |            }
-        |          }
-        |        ],
-        |        "ports": [
-        |          {
-        |            "name": "http",
-        |            "port": 8083,
-        |            "protocol": "TCP"
-        |          }
-        |        ]
-        |      }
-        |    ]
-        |  }
-        |}""".stripMargin
+         |{
+         |  "type": "MODIFIED",
+         |  "object": {
+         |    "kind": "Endpoints",
+         |    "apiVersion": "v1",
+         |    "metadata": {
+         |      "name": "sessions",
+         |      "namespace": "srv",
+         |      "selfLink": "$NonWatchPath$SessionsPath",
+         |      "uid": "6a698096-525e-11e5-9859-42010af01815",
+         |      "resourceVersion": "5319605",
+         |      "creationTimestamp": "2015-09-03T17:08:37Z"
+         |    },
+         |    "subsets": [
+         |      {
+         |        "addresses": [
+         |          {
+         |            "ip": "10.248.4.9",
+         |            "targetRef": {
+         |              "kind": "Pod",
+         |              "namespace": "srv",
+         |              "name": "sessions-293kc",
+         |              "uid": "69f5a7d2-525e-11e5-9859-42010af01815",
+         |              "resourceVersion": "4962471"
+         |            }
+         |          },
+         |          {
+         |            "ip": "10.248.7.11",
+         |            "targetRef": {
+         |              "kind": "Pod",
+         |              "namespace": "srv",
+         |              "name": "sessions-mr9gb",
+         |              "uid": "69f5b78e-525e-11e5-9859-42010af01815",
+         |              "resourceVersion": "4962524"
+         |            }
+         |          },
+         |          {
+         |            "ip": "10.248.8.9",
+         |            "targetRef": {
+         |              "kind": "Pod",
+         |              "namespace": "srv",
+         |              "name": "sessions-nicom",
+         |              "uid": "69f5b623-525e-11e5-9859-42010af01815",
+         |              "resourceVersion": "4962517"
+         |            }
+         |          }
+         |        ],
+         |        "ports": [
+         |          {
+         |            "name": "http",
+         |            "port": 8083,
+         |            "protocol": "TCP"
+         |          },
+         |          {
+         |            "name": "admin",
+         |            "port": 9990,
+         |            "protocol": "TCP"
+         |          }
+         |        ]
+         |      }
+         |    ]
+         |  }
+         |}""".stripMargin
     )
 
     val Auth = Buf.Utf8(
       s"""
-        |{
-        |  "kind": "Endpoints",
-        |  "metadata": {
-        |    "name": "auth",
-        |    "namespace": "srv",
-        |    "selfLink": "${NonWatchPath}namespaces/srv/endpoints/auth",
-        |    "uid": "6982a2fc-525e-11e5-9859-42010af01815",
-        |    "resourceVersion": "4969546",
-        |    "creationTimestamp": "2015-09-03T17:08:35Z"
-        |  },
-        |  "subsets": [
-        |    {
-        |      "addresses": [
-        |        {
-        |          "ip": "10.248.0.10",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "auth-vmcia",
-        |            "uid": "690ef84c-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962519"
-        |          }
-        |        },
-        |        {
-        |          "ip": "10.248.1.9",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "auth-d8qnl",
-        |            "uid": "690f06c8-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962570"
-        |          }
-        |        },
-        |        {
-        |          "ip": "10.248.5.9",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "auth-m79ya",
-        |            "uid": "690f05df-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962464"
-        |          }
-        |        }
-        |      ],
-        |      "ports": [
-        |        {
-        |          "name": "http",
-        |          "port": 8082,
-        |          "protocol": "TCP"
-        |        }
-        |      ]
-        |    }
-        |  ]
-        |}
-        |""".stripMargin
+         |{
+         |  "kind": "Endpoints",
+         |  "metadata": {
+         |    "name": "auth",
+         |    "namespace": "srv",
+         |    "selfLink": "${NonWatchPath}namespaces/srv/endpoints/auth",
+         |    "uid": "6982a2fc-525e-11e5-9859-42010af01815",
+         |    "resourceVersion": "4969546",
+         |    "creationTimestamp": "2015-09-03T17:08:35Z"
+         |  },
+         |  "subsets": [
+         |    {
+         |      "addresses": [
+         |        {
+         |          "ip": "10.248.0.10",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "auth-vmcia",
+         |            "uid": "690ef84c-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962519"
+         |          }
+         |        },
+         |        {
+         |          "ip": "10.248.1.9",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "auth-d8qnl",
+         |            "uid": "690f06c8-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962570"
+         |          }
+         |        },
+         |        {
+         |          "ip": "10.248.5.9",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "auth-m79ya",
+         |            "uid": "690f05df-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962464"
+         |          }
+         |        }
+         |      ],
+         |      "ports": [
+         |        {
+         |          "name": "http",
+         |          "port": 8082,
+         |          "protocol": "TCP"
+         |        },
+         |        {
+         |          "name": "admin",
+         |          "port": 9990,
+         |          "protocol": "TCP"
+         |        }
+         |      ]
+         |    }
+         |  ]
+         |}
+         |""".stripMargin
     )
     val Projects = Buf.Utf8(
       s"""
-        |{
-        |  "kind": "Endpoints",
-        |  "metadata": {
-        |    "name": "projects",
-        |    "namespace": "srv",
-        |    "selfLink": "${NonWatchPath}namespaces/srv/endpoints/projects",
-        |    "uid": "6c39393c-525e-11e5-9859-42010af01815",
-        |    "resourceVersion": "4962611",
-        |    "creationTimestamp": "2015-09-03T17:08:40Z"
-        |  },
-        |  "subsets": [
-        |    {
-        |      "addresses": [
-        |        {
-        |          "ip": "10.248.0.11",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "projects-h2zbp",
-        |            "uid": "6bc6a899-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962606"
-        |          }
-        |        },
-        |        {
-        |          "ip": "10.248.7.12",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "projects-fzfv2",
-        |            "uid": "6bc6b7be-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962607"
-        |          }
-        |        },
-        |        {
-        |          "ip": "10.248.8.10",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "projects-0o69j",
-        |            "uid": "6bc6c27c-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962610"
-        |          }
-        |        }
-        |      ],
-        |      "ports": [
-        |        {
-        |          "name": "http",
-        |          "port": 8087,
-        |          "protocol": "TCP"
-        |        }
-        |      ]
-        |    }
-        |  ]
-        |}
+         |{
+         |  "kind": "Endpoints",
+         |  "metadata": {
+         |    "name": "projects",
+         |    "namespace": "srv",
+         |    "selfLink": "${NonWatchPath}namespaces/srv/endpoints/projects",
+         |    "uid": "6c39393c-525e-11e5-9859-42010af01815",
+         |    "resourceVersion": "4962611",
+         |    "creationTimestamp": "2015-09-03T17:08:40Z"
+         |  },
+         |  "subsets": [
+         |    {
+         |      "addresses": [
+         |        {
+         |          "ip": "10.248.0.11",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "projects-h2zbp",
+         |            "uid": "6bc6a899-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962606"
+         |          }
+         |        },
+         |        {
+         |          "ip": "10.248.7.12",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "projects-fzfv2",
+         |            "uid": "6bc6b7be-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962607"
+         |          }
+         |        },
+         |        {
+         |          "ip": "10.248.8.10",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "projects-0o69j",
+         |            "uid": "6bc6c27c-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962610"
+         |          }
+         |        }
+         |      ],
+         |      "ports": [
+         |        {
+         |          "name": "http",
+         |          "port": 8087,
+         |          "protocol": "TCP"
+         |        },
+         |        {
+         |          "name": "admin",
+         |          "port": 9990,
+         |          "protocol": "TCP"
+         |        }
+         |      ]
+         |    }
+         |  ]
+         |}
       """.stripMargin
     )
     val Events = Buf.Utf8(
       s"""
-        |{
-        |  "kind": "Endpoints",
-        |  "metadata": {
-        |    "name": "events",
-        |    "namespace": "srv",
-        |    "selfLink": "${NonWatchPath}namespaces/srv/endpoints/events",
-        |    "uid": "67abfc86-525e-11e5-9859-42010af01815",
-        |    "resourceVersion": "4962380",
-        |    "creationTimestamp": "2015-09-03T17:08:32Z"
-        |  },
-        |  "subsets": [
-        |    {
-        |      "addresses": [
-        |        {
-        |          "ip": "10.248.0.9",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "events-6g3in",
-        |            "uid": "673a6ebf-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962378"
-        |          }
-        |        },
-        |        {
-        |          "ip": "10.248.5.8",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "events-l8xyq",
-        |            "uid": "673a68fe-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962374"
-        |          }
-        |        },
-        |        {
-        |          "ip": "10.248.6.8",
-        |          "targetRef": {
-        |            "kind": "Pod",
-        |            "namespace": "srv",
-        |            "name": "events-4hkt8",
-        |            "uid": "673a664a-525e-11e5-9859-42010af01815",
-        |            "resourceVersion": "4962350"
-        |          }
-        |        }
-        |      ],
-        |      "ports": [
-        |        {
-        |          "name": "http",
-        |          "port": 8085,
-        |          "protocol": "TCP"
-        |        }
-        |      ]
-        |    }
-        |  ]
-        |}
+         |{
+         |  "kind": "Endpoints",
+         |  "metadata": {
+         |    "name": "events",
+         |    "namespace": "srv",
+         |    "selfLink": "${NonWatchPath}namespaces/srv/endpoints/events",
+         |    "uid": "67abfc86-525e-11e5-9859-42010af01815",
+         |    "resourceVersion": "4962380",
+         |    "creationTimestamp": "2015-09-03T17:08:32Z"
+         |  },
+         |  "subsets": [
+         |    {
+         |      "addresses": [
+         |        {
+         |          "ip": "10.248.0.9",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "events-6g3in",
+         |            "uid": "673a6ebf-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962378"
+         |          }
+         |        },
+         |        {
+         |          "ip": "10.248.5.8",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "events-l8xyq",
+         |            "uid": "673a68fe-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962374"
+         |          }
+         |        },
+         |        {
+         |          "ip": "10.248.6.8",
+         |          "targetRef": {
+         |            "kind": "Pod",
+         |            "namespace": "srv",
+         |            "name": "events-4hkt8",
+         |            "uid": "673a664a-525e-11e5-9859-42010af01815",
+         |            "resourceVersion": "4962350"
+         |          }
+         |        }
+         |      ],
+         |      "ports": [
+         |        {
+         |          "name": "http",
+         |          "port": 8085,
+         |          "protocol": "TCP"
+         |        },
+         |        {
+         |          "name": "admin",
+         |          "port": 9990,
+         |          "protocol": "TCP"
+         |        }
+         |      ]
+         |    }
+         |  ]
+         |}
       """.stripMargin
     )
     val Empty = Buf.Utf8(
@@ -421,7 +451,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         val rsp = Response()
         rsp.content = Rsps.Inits(req.uri)
         doInit before Future.value(rsp)
-      case req if req.uri == s"$WatchPath$SessionsPath" =>
+      case req if req.uri.startsWith(s"$WatchPath$SessionsPath") =>
         val rsp = Response()
 
         rsp.setChunked(true)
