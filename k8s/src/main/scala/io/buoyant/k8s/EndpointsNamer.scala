@@ -144,14 +144,13 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
   def initialize(endpoints: v1.Endpoints): Unit =
     synchronized { add(endpoints) }
 
-  def update(watch: v1.EndpointsWatch): Unit = synchronized {
+  override def update(watch: v1.EndpointsWatch): Unit =
     watch match {
       case v1.EndpointsError(e) => log.error("k8s watch error: %s", e)
       case v1.EndpointsAdded(endpoints) => add(endpoints)
       case v1.EndpointsModified(endpoints) => modify(endpoints)
       case v1.EndpointsDeleted(endpoints) => delete(endpoints)
     }
-  }
 
   def get(nsName: String, portName: String, serviceName: String): Option[Var[Addr]] =
     cache.get(CacheKey(nsName, portName, serviceName))
