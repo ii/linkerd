@@ -33,13 +33,15 @@ class MultiNsNamer(
       case (id@Path.Utf8(nsName, portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        lookupServices(nsName, portName, serviceName, id, residual)
+        val serviceCache = serviceNs.get(serviceName, None)
+        lookupServices(nsName, portName, serviceName, serviceCache, id, residual)
 
       case (id@Path.Utf8(nsName, portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        lookupServices(nsName, portName, serviceName, id, residual, labelSelector)
+        val serviceCache = serviceNs.get(serviceName, None)
+        lookupServices(nsName, portName, serviceName, serviceCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(nsName, portName, serviceName), Some(label)) =>
         log.debug("k8s lookup: ns %s service %s label value segment missing for label %s", nsName, serviceName, portName, label)
@@ -66,6 +68,7 @@ class SingleNsNamer(
 
   protected[this] override val variablePrefixLength: Int =
     SingleNsNamer.PrefixLen + labelName.size
+  private[this] val serviceCache = serviceNs.get(nsName, None)
 
   /**
    * Accepts names in the form:
@@ -82,13 +85,13 @@ class SingleNsNamer(
       case (id@Path.Utf8(portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        lookupServices(nsName, portName, serviceName, id, residual)
+        lookupServices(nsName, portName, serviceName, serviceCache, id, residual)
 
       case (id@Path.Utf8(portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        lookupServices(nsName, portName, serviceName, id, residual, labelSelector)
+        lookupServices(nsName, portName, serviceName, serviceCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(portName, serviceName), Some(label)) =>
         log.debug("k8s lookup: ns %s service %s label value segment missing for label %s", nsName, serviceName, portName, label)
@@ -113,10 +116,22 @@ abstract class EndpointsNamer(
   val cache = new EndpointsCache
   protected[this] val variablePrefixLength: Int
 
+  private[k8s] val serviceNs = new Ns[
+    v1.Service,
+    v1.ServiceWatch,
+    v1.ServiceList,
+    ServiceCache
+    ](backoff, timer) {
+    override protected def mkResource(name: String) = mkApi(name).services
+
+    override protected def mkCache(name: String) = new ServiceCache(name)
+  }
+
   private[k8s] def lookupServices(
     nsName: String,
     portName: String,
     serviceName: String,
+    serviceCache: ServiceCache,
     id: Path,
     residual: Path,
     labelSelector: Option[String] = None
