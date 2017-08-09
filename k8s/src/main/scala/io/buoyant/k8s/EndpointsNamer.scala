@@ -126,7 +126,11 @@ abstract class EndpointsNamer(
     val toNameTree: v1.Endpoints => NameTree[Name] = endpoints => {
       cache.initialize(endpoints)
       cache.get(nsName, portName, serviceName) match {
-        case Some(addr) => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
+        case Some(addr) => Try(portName.toInt).toOption
+          .flatMap { portNum => ??? }
+          .getOrElse {
+            NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
+          }
         case None => NameTree.Neg
       }
     }
@@ -136,7 +140,11 @@ abstract class EndpointsNamer(
         // and similarly update then get is not great programming either
         cache.update(event)
         cache.get(nsName, portName, serviceName) match {
-          case Some(addr) => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
+          case Some(addr) => Try(portName.toInt).toOption
+            .flatMap { portNum => ??? }
+            .getOrElse {
+              NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
+            }
           case None => NameTree.Neg
         }
       }
