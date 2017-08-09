@@ -136,30 +136,35 @@ abstract class EndpointsNamer(
     residual: Path,
     labelSelector: Option[String] = None
   ): Activity[NameTree[Name]] = {
-    def lookup: NameTree[Name] = {
+    def lookup = {
       val addrLookup = Try(portName.toInt).toOption match {
         case Some(portNum) =>
-          cache.getNumberedPort(nsName, serviceName, portNum)
+          cache.lookupNumberedPort(nsName, serviceName, portNum, serviceCache)
         case None =>
-          cache.get(nsName, portName, serviceName)
+          Var(cache.get(nsName, portName, serviceName))
       }
-      addrLookup
-        .map { addr => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual)) }
-        .getOrElse(NameTree.Neg)
+      addrLookup.map { addrVar =>
+        val result =
+          addrVar.map { addr =>
+            NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
+          }.getOrElse(NameTree.Neg)
+        Activity.Ok(result)
+      }
+
     }
 
     // wish i didn't have to call initialize then get here, just to get the addrs
     // from the Endpoints object. who wrote this api anyway? /me raises hand. whoops.
-    val toNameTree: v1.Endpoints => NameTree[Name] = endpoints => {
+    val toNameTree: v1.Endpoints => Activity.State[NameTree[Name]] = endpoints => {
       cache.initialize(endpoints)
-      lookup
+      lookup.sample()
     }
     mkApi(nsName)
       .endpoints(serviceName)
-      .activity(toNameTree, labelSelector = labelSelector) { (nameTree, event) =>
+      .flactivity(toNameTree, labelSelector = labelSelector) { event =>
         // and similarly update then get is not great programming either
         cache.update(event)
-        lookup
+        lookup.sample()
       }
   }
 }
@@ -182,6 +187,35 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
   = portNameCache.get(portNumber).flatMap { portName =>
     cache.get(CacheKey(nsName, portName, serviceName))
   }
+
+  /**
+   * For a given port number, apply the port mapping of the service.  The target port of the port
+   * mapping may be a named port and the named port may or may not exist.  The outer Var[Option]
+   * of the return type tracks whether the port exists and the inner Var[Addr] tracks the actual
+   * endpoints if the port does exist.
+   */
+  private[k8s] def lookupNumberedPort(
+    nsName: String,
+    serviceName: String,
+    portNumber: Int,
+    serviceCache: ServiceCache
+  ): Var[Option[Var[Addr]]] =
+    serviceCache.getPortMapping(serviceName, portNumber).flatMap {
+      case Some(targetPort) =>
+        targetPort.flatMap { target =>
+          // target may be an int (port number) or string (port name)
+          Try(target.toInt).toOption match {
+            case Some(targetPortNumber) =>
+              // target port is a number and therefore exists
+              Var(getNumberedPort(nsName, serviceName, targetPortNumber))
+            case None =>
+              // target port is a name and may or may not exist
+              Var(get(nsName, target, serviceName))
+          }
+        }
+      case None =>
+        Var(None)
+    }
 
   def initialize(endpoints: v1.Endpoints): Unit =
     add(endpoints)
