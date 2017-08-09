@@ -137,6 +137,8 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
 
   private[this] case class CacheKey(nsName: String, portName: String, serviceName: String)
 
+  private[this] case class PortAddr(portName: String, addr: Address)
+
   private[this]type VarUp[T] = Var[T] with Updatable[T]
 
   private[this] var cache = Map.empty[CacheKey, VarUp[Addr]]
@@ -162,26 +164,27 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
       metadata <- endpoints.metadata
       namespace <- metadata.namespace
       name <- metadata.name
+      subsets <- endpoints.subsets
     } {
-      getAddresses(endpoints.subsets).foreach {
-        case (portName, addresses) =>
+      val portsAndAddrs = for {
+        subset <- subsets
+        address <- subset.addresses.toSeq.flatten
+        port <- subset.ports.toSeq.flatten
+        portName <- port.name
+      } yield PortAddr(portName, Address(address.ip, port.port))
+
+      portsAndAddrs
+        .groupBy(_.portName)
+        .mapValues {
+          _.map(_.addr)
+        }
+        .foreach { case (portName, addresses) =>
           val key = CacheKey(namespace, portName, name)
           endpointMap(key) = Addr.Bound(addresses: _*)
-      }
+        }
     }
     endpointMap.toMap
   }
-
-  // omg i hate this method so much
-  private[this] def getAddresses(subsets: Option[Seq[v1.EndpointSubset]]): Map[String, Seq[Address]] =
-    (for {
-      subset <- subsets.getOrElse(Nil)
-      address <- subset.addresses.getOrElse(Nil)
-      port <- subset.ports.getOrElse(Nil)
-      portName <- port.name
-    } yield {
-      (portName, Address(address.ip, port.port))
-    }).groupBy(_._1).mapValues(_.map(_._2))
 
   private[this] def add(endpoints: v1.Endpoints): Unit =
     for { (key, addr) <- toMap(endpoints) } synchronized {
