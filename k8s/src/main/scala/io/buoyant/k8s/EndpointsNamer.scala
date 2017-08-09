@@ -158,18 +158,23 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
   def get(nsName: String, portName: String, serviceName: String): Option[Var[Addr]] =
     cache.get(CacheKey(nsName, portName, serviceName))
 
+  /**
+   * Convert a [[v1.Endpoints]] object to a map of `(namespace, port, service) -> Address`
+   *
+   * @param endpoints
+   * @return
+   */
   private[this] def toMap(endpoints: v1.Endpoints): Map[CacheKey, Addr] = {
     val endpointMap = mutable.Map.empty[CacheKey, Addr]
     for {
       metadata <- endpoints.metadata
       namespace <- metadata.namespace
       name <- metadata.name
-      subsets <- endpoints.subsets
     } {
       val portsAndAddrs = for {
-        subset <- subsets
-        address <- subset.addresses.toSeq.flatten
-        port <- subset.ports.toSeq.flatten
+        subset <- endpoints.subsetsSeq
+        address <- subset.addressesSeq
+        port <- subset.portsSeq
         portName <- port.name
       } yield PortAddr(portName, Address(address.ip, port.port))
 

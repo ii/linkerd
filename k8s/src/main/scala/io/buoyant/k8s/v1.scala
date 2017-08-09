@@ -1,6 +1,6 @@
 package io.buoyant.k8s
 
-import com.fasterxml.jackson.annotation.{JsonProperty, JsonSubTypes, JsonTypeInfo}
+import com.fasterxml.jackson.annotation.{JsonProperty, JsonSubTypes, JsonTypeInfo, JsonIgnore}
 import com.fasterxml.jackson.core.`type`.TypeReference
 import com.twitter.finagle.{http, Service => FService}
 import io.buoyant.k8s.{KubeObject => BaseObject}
@@ -136,13 +136,31 @@ package object v1 {
     kind: Option[String] = None,
     metadata: Option[ObjectMeta] = None,
     apiVersion: Option[String] = None
-  ) extends Object
+  ) extends Object {
+    /** @return the subsets list on this `Endpoints` object,
+     *          or an empty [[Seq]] if it is empty.
+     */
+    @JsonIgnore
+    @inline
+    def subsetsSeq: Seq[EndpointSubset] =
+    subsets.getOrElse(Seq())
+  }
 
   case class EndpointSubset(
     notReadyAddresses: Option[Seq[EndpointAddress]] = None,
     addresses: Option[Seq[EndpointAddress]] = None,
     ports: Option[Seq[EndpointPort]] = None
-  )
+  ) {
+    @JsonIgnore
+    @inline
+    def addressesSeq: Seq[EndpointAddress]
+    = addresses.getOrElse(Seq())
+
+    @JsonIgnore
+    @inline
+    def portsSeq: Seq[EndpointPort]
+    = ports.getOrElse(Seq())
+  }
 
   case class EndpointAddress(
     ip: String,
