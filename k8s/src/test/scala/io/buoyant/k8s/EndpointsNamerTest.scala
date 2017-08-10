@@ -15,6 +15,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
   val WatchPath = "/api/v1/watch/"
   val SessionsPath = "namespaces/srv/endpoints/sessions"
   val NonWatchPath = "/api/v1/"
+  val ServicesPath = "namespaces/srv/services"
   object Rsps {
     val InitResourceVersion = "4962526"
 
@@ -451,7 +452,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         val rsp = Response()
         rsp.content = Rsps.Inits(req.uri)
         doInit before Future.value(rsp)
-      case req if req.uri == s"$NonWatchPath/namespaces/srv/services" =>
+      case req if req.uri == s"$NonWatchPath$ServicesPath" =>
         val rsp = Response()
         rsp.content = Rsps.Services
         Future.value(rsp)
@@ -539,11 +540,11 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         request = req
         val rsp = Response()
         Future.value(rsp)
-      case req if req.uri.startsWith(s"${NonWatchPath}namespaces/srv/services") =>
+      case req if req.uri.startsWith(s"$NonWatchPath$ServicesPath") =>
         val rsp = Response()
         rsp.content = Rsps.Services
         Future.value(rsp)
-      case req if req.uri.startsWith(s"${WatchPath}namespaces/srv/services") =>
+      case req if req.uri.startsWith(s"$WatchPath$ServicesPath") =>
         val rsp = Response()
         Future.value(rsp)
       case req =>
@@ -657,15 +658,24 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     @volatile var req: Request = null
 
     val service = Service.mk[Request, Response] {
-      case r if r.path.startsWith("/api/v1/namespaces/srv/endpoints/sessions") =>
+      case r if r.path.startsWith(s"$NonWatchPath$SessionsPath") =>
         req = r
         val rsp = Response()
         rsp.content = Rsps.Init
         Future.value(rsp)
-      case r if r.path.startsWith("/api/v1/watch/namespaces/srv/endpoints/sessions") =>
+      case r if r.path.startsWith(s"$WatchPath$SessionsPath") =>
         req = r
         val rsp = Response()
         rsp.content = Rsps.Init
+        Future.value(rsp)
+      case r if r.path.startsWith(s"$NonWatchPath$ServicesPath") =>
+        req = r
+        val rsp = Response()
+        rsp.content = Rsps.Services
+        Future.value(rsp)
+      case r if r.path.startsWith(s"$WatchPath$SessionsPath") =>
+        req = r
+        val rsp = Response()
         Future.value(rsp)
       case r =>
         throw new TestFailedException(s"unexpected request: $r", 1)
