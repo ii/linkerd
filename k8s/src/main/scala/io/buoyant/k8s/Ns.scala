@@ -5,9 +5,9 @@ import com.twitter.finagle.service.Backoff
 import com.twitter.finagle.tracing.Trace
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.util._
-import io.buoyant.k8s.Ns.ObjectListCache
+import io.buoyant.k8s.Ns.ListCache
 
-abstract class Ns[O <: KubeObject : Manifest, W <: Watch[O] : Manifest, L <: KubeList[O] : Manifest, Cache <: ObjectListCache[O, W, L]](
+abstract class Ns[O <: KubeObject : Manifest, W <: Watch[O] : Manifest, L <: KubeList[O] : Manifest, Cache <: ListCache[O, W, L]](
   backoff: Stream[Duration] = Backoff.exponentialJittered(10.milliseconds, 10.seconds),
   timer: Timer = DefaultTimer
 ) {
@@ -96,9 +96,8 @@ abstract class Ns[O <: KubeObject : Manifest, W <: Watch[O] : Manifest, L <: Kub
 
 object Ns {
 
-  abstract class ObjectCache[O <: KubeObject : Manifest, W <: Watch[O] : Manifest] {
-
-    protected[ObjectCache] type VarUp[T] = Var[T] with Updatable[T]
+  trait CacheLike[O <: KubeObject, W <: Watch[O], I] {
+    protected[CacheLike] type VarUp[T] = Var[T] with Updatable[T]
 
     /**
      * We can stabilize this by changing the type to Var[Option[Var[T]]].
@@ -128,20 +127,13 @@ object Ns {
       }
     }
     def update(event: W): Unit
+
+    def initialize(init: I): Unit
   }
 
-  /**
-   * An [[ObjectCache]] initialized by a [[KubeList]]
-   *
-   * @param ev$1
-   * @param ev$2
-   * @param ev$3
-   * @tparam O
-   * @tparam W
-   * @tparam L
-   */
-  abstract class ObjectListCache[O <: KubeObject : Manifest, W <: Watch[O] : Manifest, L <: KubeList[O] : Manifest]
-    extends ObjectCache[O, W] {
-    def initialize(list: L): Unit
-  }
+  abstract class ObjectCache[O <: KubeObject : Manifest, W <: Watch[O] : Manifest]
+    extends CacheLike[O, W, O]
+
+  abstract class ListCache[O <: KubeObject : Manifest, W <: Watch[O] : Manifest, L <: KubeList[O] : Manifest]
+    extends CacheLike[O, W, L]
 }

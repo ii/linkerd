@@ -3,12 +3,12 @@ package io.buoyant.k8s
 import java.net.InetSocketAddress
 import com.twitter.finagle.Address
 import com.twitter.util.{Updatable, Var}
-import io.buoyant.k8s.Ns.ObjectListCache
+import io.buoyant.k8s.Ns.ListCache
 import io.buoyant.k8s.v1._
 import scala.collection.mutable
 
 class ServiceCache(namespace: String)
-  extends ObjectListCache[Service, ServiceWatch, ServiceList] {
+  extends ListCache[Service, ServiceWatch, ServiceList] {
   def get(serviceName: String, portName: String): Var[Option[Var[Address]]] = synchronized {
     // we call this unstable because every change to the Address will cause
     // the entire Var[Option[Address]] to update.
