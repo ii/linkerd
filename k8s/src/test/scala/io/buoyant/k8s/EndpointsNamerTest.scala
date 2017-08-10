@@ -451,6 +451,10 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         val rsp = Response()
         rsp.content = Rsps.Inits(req.uri)
         doInit before Future.value(rsp)
+      case req if req.uri == s"$NonWatchPath/namespaces/srv/services" =>
+        val rsp = Response()
+        rsp.content = Rsps.Services
+        Future.value(rsp)
       case req if req.uri.startsWith(s"$WatchPath$SessionsPath") =>
         val rsp = Response()
 
@@ -531,12 +535,17 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         val rsp = Response()
         rsp.content = Rsps.Init
         Future.value(rsp)
-
       case req if req.uri.startsWith(s"$WatchPath$SessionsPath") =>
         request = req
         val rsp = Response()
         Future.value(rsp)
-
+      case req if req.uri.startsWith(s"${NonWatchPath}namespaces/srv/services") =>
+        val rsp = Response()
+        rsp.content = Rsps.Services
+        Future.value(rsp)
+      case req if req.uri.startsWith(s"${WatchPath}namespaces/srv/services") =>
+        val rsp = Response()
+        Future.value(rsp)
       case req =>
         throw new TestFailedException(s"unexpected request: $req", 1)
     }
@@ -602,6 +611,10 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         Future.value(rsp)
       case req if req.uri == "/api/v1/watch/namespaces/srv/endpoints/sessions" =>
         Future.value(Response())
+      case req if req.uri.startsWith(s"${NonWatchPath}namespaces/srv/services") =>
+        val rsp = Response()
+        rsp.content = Rsps.Services
+        Future.value(rsp)
       case req =>
         throw new TestFailedException(s"unexpected request: $req", 1)
     }

@@ -127,6 +127,7 @@ abstract class EndpointsNamer(
     override protected def mkCache(name: String) = new ServiceCache(name)
   }
 
+
   private[k8s] def lookupServices(
     nsName: String,
     portName: String,
@@ -136,35 +137,27 @@ abstract class EndpointsNamer(
     residual: Path,
     labelSelector: Option[String] = None
   ): Activity[NameTree[Name]] = {
-    def lookup = {
-      val addrLookup = Try(portName.toInt).toOption match {
-        case Some(portNum) =>
-          cache.lookupNumberedPort(nsName, serviceName, portNum, serviceCache)
-        case None =>
-          Var(cache.get(nsName, portName, serviceName))
-      }
-      addrLookup.map { addrVar =>
-        val result =
-          addrVar.map { addr =>
-            NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
-          }.getOrElse(NameTree.Neg)
-        Activity.Ok(result)
+
+    @inline def mkNameTree: NameTree[Name] =
+      cache.get(nsName, portName, serviceName) match {
+        case Some(addr) => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
+        case None => NameTree.Neg
       }
 
-    }
 
-    // wish i didn't have to call initialize then get here, just to get the addrs
-    // from the Endpoints object. who wrote this api anyway? /me raises hand. whoops.
-    val toNameTree: v1.Endpoints => Activity.State[NameTree[Name]] = endpoints => {
+    @inline def initCache(endpoints: v1.Endpoints): NameTree[Name] = {
+      // wish i didn't have to call initialize then get here, just to get the addrs
+      // from the Endpoints object. who wrote this api anyway? /me raises hand. whoops.
       cache.initialize(endpoints)
-      lookup.sample()
+      mkNameTree
     }
+
     mkApi(nsName)
       .endpoints(serviceName)
-      .flactivity(toNameTree, labelSelector = labelSelector) { event =>
+      .activity(initCache, labelSelector = labelSelector) { (_, event) =>
         // and similarly update then get is not great programming either
         cache.update(event)
-        lookup.sample()
+        mkNameTree
       }
   }
 }
@@ -175,10 +168,7 @@ object EndpointsNamer {
 }
 
 class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
-
   import EndpointsCache._
-
-  private[this] type VarUp[T] = Var[T] with Updatable[T]
 
   private[this] var cache = Map.empty[CacheKey, VarUp[Addr]]
   private[this] var portNameCache = Map.empty[Int, String]
