@@ -34,14 +34,14 @@ class MultiNsNamer(
       case (id@Path.Utf8(nsName, portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        val portCache = serviceNs.get(nsName, None)
+        val portCache = PortCache.fromService(mkApi(nsName).service(serviceName))
         lookupServices(nsName, portName, serviceName, portCache, id, residual)
 
       case (id@Path.Utf8(nsName, portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        val portCache = serviceNs.get(nsName, None)
+        val portCache = PortCache.fromService(mkApi(nsName).service(serviceName))
         lookupServices(nsName, portName, serviceName, portCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(nsName, portName, serviceName), Some(label)) =>
@@ -70,6 +70,7 @@ class SingleNsNamer(
   protected[this] override val variablePrefixLength: Int =
     SingleNsNamer.PrefixLen + labelName.size
 
+
   /**
    * Accepts names in the form:
    *   /<port-name>/<svc-name>[/<label-value>]/residual/path
@@ -85,14 +86,14 @@ class SingleNsNamer(
       case (id@Path.Utf8(portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        val portCache = serviceNs.get(nsName, None)
+        val portCache = PortCache.fromService(mkApi(nsName).service(serviceName))
         lookupServices(nsName, portName, serviceName, portCache, id, residual)
 
       case (id@Path.Utf8(portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        val portCache = serviceNs.get(nsName, labelSelector)
+        val portCache = PortCache.fromService(mkApi(nsName).service(serviceName))
         lookupServices(nsName, portName, serviceName, portCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(portName, serviceName), Some(label)) =>
@@ -119,22 +120,22 @@ abstract class EndpointsNamer(
   val cache = new EndpointsCache
   protected[this] val variablePrefixLength: Int
 
-  private[k8s] val serviceNs = new Ns[
-    v1.Service,
-    v1.ServiceWatch,
-    v1.ServiceList,
-    PortCache
-    ](backoff, timer) {
-    override protected def mkResource(name: String) = mkApi(name).services
-
-    override protected def mkCache(name: String) = new PortCache()
-  }
+  //  private[k8s] val serviceNs = new Ns[
+  //    v1.Service,
+  //    v1.ServiceWatch,
+  //    v1.ServiceList,
+  //    PortCache
+  //    ](backoff, timer) {
+  //    override protected def mkResource(name: String) = mkApi(name).services
+  //
+  //    override protected def mkCache(name: String) = new PortCache()
+  //  }
 
   private[k8s] def lookupServices(
     nsName: String,
     portName: String,
     serviceName: String,
-    portCache: PortCache,
+    portCacheAct: Activity[PortCache],
     id: Path,
     residual: Path,
     labelSelector: Option[String] = None
@@ -168,17 +169,18 @@ abstract class EndpointsNamer(
 
     Try(portName.toInt).toOption match {
       case Some(portNumber) =>
-        val portStates: Var[Activity.State[NameTree[Name]]] =
-          cache.lookupNumberedPort(nsName, serviceName, portNumber, portCache)
-            .map {
-              case Some(addr) =>
-                val nt = NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
-                Activity.Ok(nt)
-              case None => Activity.Ok(NameTree.Neg)
-            }
-        Activity(portStates)
+        portCacheAct.flatMap { portCache =>
+          val portStates: Var[Activity.State[NameTree[Name]]] =
+            cache.lookupNumberedPort(nsName, serviceName, portNumber, portCache)
+              .map {
+                case Some(addr) =>
+                  val nt = NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
+                  Activity.Ok(nt)
+                case None => Activity.Ok(NameTree.Neg)
+              }
+          Activity(portStates)
+        }
       case None => endpointsAct(portName)
-
     }
 
 

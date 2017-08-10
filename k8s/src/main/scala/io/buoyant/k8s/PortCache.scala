@@ -2,7 +2,7 @@ package io.buoyant.k8s
 
 import java.net.InetSocketAddress
 import com.twitter.finagle.Address
-import com.twitter.util.Var
+import com.twitter.util.{Activity, Var}
 import io.buoyant.k8s.Ns.ObjectCache
 import scala.collection.mutable
 
@@ -70,3 +70,13 @@ class PortCache extends ObjectCache[v1.Service, v1.ServiceWatch] with Stabilize 
 
 }
 
+object PortCache {
+  private[this] val initPortCache: v1.Service => PortCache = s => {
+    val pc = new PortCache
+    pc.initialize(s)
+    pc
+  }
+
+  def fromService(service: NsObjectResource[v1.Service, v1.ServiceWatch]): Activity[PortCache]
+  = service.activity(initPortCache) { (cache, event) => cache.update(event); cache }
+}
