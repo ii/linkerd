@@ -1,5 +1,6 @@
 package io.buoyant.k8s
 
+import java.net.InetAddress
 import com.twitter.conversions.time._
 import com.twitter.finagle.{Service => _, _}
 import com.twitter.finagle.service.Backoff
@@ -33,15 +34,15 @@ class MultiNsNamer(
       case (id@Path.Utf8(nsName, portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        val serviceCache = serviceNs.get(nsName, None)
-        lookupServices(nsName, portName, serviceName, serviceCache, id, residual)
+        val portCache = serviceNs.get(nsName, None)
+        lookupServices(nsName, portName, serviceName, portCache, id, residual)
 
       case (id@Path.Utf8(nsName, portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        val serviceCache = serviceNs.get(nsName, None)
-        lookupServices(nsName, portName, serviceName, serviceCache, id, residual, labelSelector)
+        val portCache = serviceNs.get(nsName, None)
+        lookupServices(nsName, portName, serviceName, portCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(nsName, portName, serviceName), Some(label)) =>
         log.debug("k8s lookup: ns %s service %s label value segment missing for label %s", nsName, serviceName, portName, label)
@@ -84,15 +85,15 @@ class SingleNsNamer(
       case (id@Path.Utf8(portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        val serviceCache = serviceNs.get(nsName, None)
-        lookupServices(nsName, portName, serviceName, serviceCache, id, residual)
+        val portCache = serviceNs.get(nsName, None)
+        lookupServices(nsName, portName, serviceName, portCache, id, residual)
 
       case (id@Path.Utf8(portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        val serviceCache = serviceNs.get(nsName, labelSelector)
-        lookupServices(nsName, portName, serviceName, serviceCache, id, residual, labelSelector)
+        val portCache = serviceNs.get(nsName, labelSelector)
+        lookupServices(nsName, portName, serviceName, portCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(portName, serviceName), Some(label)) =>
         log.debug("k8s lookup: ns %s service %s label value segment missing for label %s", nsName, serviceName, portName, label)
@@ -113,7 +114,8 @@ abstract class EndpointsNamer(
   mkApi: String => v1.NsApi,
   labelName: Option[String] = None,
   backoff: Stream[Duration] = EndpointsNamer.DefaultBackoff
-)(implicit timer: Timer = DefaultTimer) extends Namer {
+)(implicit timer: Timer = DefaultTimer)
+  extends Namer {
   val cache = new EndpointsCache
   protected[this] val variablePrefixLength: Int
 
@@ -121,45 +123,65 @@ abstract class EndpointsNamer(
     v1.Service,
     v1.ServiceWatch,
     v1.ServiceList,
-    ServiceCache
+    PortCache
     ](backoff, timer) {
     override protected def mkResource(name: String) = mkApi(name).services
 
-    override protected def mkCache(name: String) = new ServiceCache(name)
+    override protected def mkCache(name: String) = new PortCache()
   }
-
 
   private[k8s] def lookupServices(
     nsName: String,
     portName: String,
     serviceName: String,
-    serviceCache: ServiceCache,
+    portCache: PortCache,
     id: Path,
     residual: Path,
     labelSelector: Option[String] = None
   ): Activity[NameTree[Name]] = {
 
-    @inline def mkNameTree: NameTree[Name] =
-      cache.get(nsName, portName, serviceName) match {
-        case Some(addr) => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
-        case None => NameTree.Neg
-      }
+    val ns = mkApi(nsName)
 
+    def endpointsAct(targetPortName: String): Activity[NameTree[Name]] = {
 
-    @inline def initCache(endpoints: v1.Endpoints): NameTree[Name] = {
-      // wish i didn't have to call initialize then get here, just to get the addrs
-      // from the Endpoints object. who wrote this api anyway? /me raises hand. whoops.
-      cache.initialize(endpoints)
-      mkNameTree
-    }
+      def mkNameTree: NameTree[Name] =
+        cache.get(nsName, targetPortName, serviceName) match {
+          case Some(addr) => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
+          case None => NameTree.Neg
+        }
 
-    mkApi(nsName)
-      .endpoints(serviceName)
-      .activity(initCache, labelSelector = labelSelector) { (_, event) =>
-        // and similarly update then get is not great programming either
-        cache.update(event)
+      @inline def initCache(endpoints: v1.Endpoints): NameTree[Name] = {
+        // wish i didn't have to call initialize then get here, just to get the addrs
+        // from the Endpoints object. who wrote this api anyway? /me raises hand. whoops.
+        cache.initialize(endpoints)
         mkNameTree
       }
+
+
+      ns.endpoints(serviceName)
+        .activity(initCache, labelSelector = labelSelector) { (_, event) =>
+          // and similarly update then get is not great programming either
+          cache.update(event)
+          mkNameTree
+        }
+    }
+
+    Try(portName.toInt).toOption match {
+      case Some(portNumber) =>
+        val portStates: Var[Activity.State[NameTree[Name]]] =
+          cache.lookupNumberedPort(nsName, serviceName, portNumber, portCache)
+            .map {
+              case Some(addr) =>
+                val nt = NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
+                Activity.Ok(nt)
+              case None => Activity.Ok(NameTree.Neg)
+            }
+        Activity(portStates)
+      case None => endpointsAct(portName)
+
+    }
+
+
   }
 }
 
@@ -189,23 +211,12 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
     nsName: String,
     serviceName: String,
     portNumber: Int,
-    serviceCache: ServiceCache
+    portCache: PortCache
   ): Var[Option[Var[Addr]]] =
-    serviceCache.getPortMapping(serviceName, portNumber).flatMap {
+    portCache.get(portNumber).flatMap {
       case Some(targetPort) =>
-        targetPort.flatMap { target =>
-          // target may be an int (port number) or string (port name)
-          Try(target.toInt).toOption match {
-            case Some(targetPortNumber) =>
-              // target port is a number and therefore exists
-              Var(getNumberedPort(nsName, serviceName, targetPortNumber))
-            case None =>
-              // target port is a name and may or may not exist
-              Var(get(nsName, target, serviceName))
-          }
-        }
-      case None =>
-        Var(None)
+        targetPort.flatMap { target => Var(get(nsName, target, serviceName)) }
+      case None => Var(None)
     }
 
   def initialize(endpoints: v1.Endpoints): Unit =

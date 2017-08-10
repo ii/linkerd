@@ -121,6 +121,8 @@ package object v1 {
     def endpoints = listResource[Endpoints, EndpointsWatch, EndpointsList]()
     def endpoints(name: String): NsObjectResource[v1.Endpoints, v1.EndpointsWatch] = endpoints.named(name)
     def services = listResource[Service, ServiceWatch, ServiceList]()
+
+    def service(name: String): NsObjectResource[Service, ServiceWatch] = services.named(name)
     def configMap(name: String) = objectResource[ConfigMap, ConfigMapWatch](name)
   }
 
@@ -143,7 +145,7 @@ package object v1 {
     @JsonIgnore
     @inline
     def subsetsSeq: Seq[EndpointSubset] =
-    subsets.getOrElse(Seq())
+    subsets.getOrElse(Seq.empty)
   }
 
   case class EndpointSubset(
@@ -154,12 +156,12 @@ package object v1 {
     @JsonIgnore
     @inline
     def addressesSeq: Seq[EndpointAddress] =
-      addresses.getOrElse(Seq())
+      addresses.getOrElse(Seq.empty)
 
     @JsonIgnore
     @inline
     def portsSeq: Seq[EndpointPort] =
-      ports.getOrElse(Seq())
+      ports.getOrElse(Seq.empty)
   }
 
   case class EndpointAddress(
@@ -195,7 +197,12 @@ package object v1 {
 
   case class LoadBalancerStatus(
     ingress: Option[Seq[LoadBalancerIngress]]
-  )
+  ) {
+    @JsonIgnore
+    @inline
+    def ingressSeq: Seq[LoadBalancerIngress]
+    = ingress.getOrElse(Seq.empty)
+  }
 
   case class LoadBalancerIngress(
     ip: Option[String] = None,
