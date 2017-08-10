@@ -33,14 +33,14 @@ class MultiNsNamer(
       case (id@Path.Utf8(nsName, portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        val serviceCache = serviceNs.get(serviceName, None)
+        val serviceCache = serviceNs.get(nsName, None)
         lookupServices(nsName, portName, serviceName, serviceCache, id, residual)
 
       case (id@Path.Utf8(nsName, portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        val serviceCache = serviceNs.get(serviceName, None)
+        val serviceCache = serviceNs.get(nsName, None)
         lookupServices(nsName, portName, serviceName, serviceCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(nsName, portName, serviceName), Some(label)) =>
@@ -68,7 +68,6 @@ class SingleNsNamer(
 
   protected[this] override val variablePrefixLength: Int =
     SingleNsNamer.PrefixLen + labelName.size
-  private[this] val serviceCache = serviceNs.get(nsName, None)
 
   /**
    * Accepts names in the form:
@@ -85,12 +84,14 @@ class SingleNsNamer(
       case (id@Path.Utf8(portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
+        val serviceCache = serviceNs.get(nsName, None)
         lookupServices(nsName, portName, serviceName, serviceCache, id, residual)
 
       case (id@Path.Utf8(portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
+        val serviceCache = serviceNs.get(nsName, labelSelector)
         lookupServices(nsName, portName, serviceName, serviceCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(portName, serviceName), Some(label)) =>
