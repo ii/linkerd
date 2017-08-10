@@ -141,49 +141,37 @@ abstract class EndpointsNamer(
     labelSelector: Option[String] = None
   ): Activity[NameTree[Name]] = {
 
-    val ns = mkApi(nsName)
 
-    def endpointsAct(targetPortName: String): Activity[NameTree[Name]] = {
+    @inline def initCache(endpoints: v1.Endpoints): EndpointsCache = {
+      // wish i didn't have to call initialize then get here, just to get the addrs
+      // from the Endpoints object. who wrote this api anyway? /me raises hand. whoops.
+      cache.initialize(endpoints)
+      cache
+    }
 
-      def mkNameTree: NameTree[Name] =
-        cache.get(nsName, targetPortName, serviceName) match {
-          case Some(addr) => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
-          case None => NameTree.Neg
-        }
-
-      @inline def initCache(endpoints: v1.Endpoints): NameTree[Name] = {
-        // wish i didn't have to call initialize then get here, just to get the addrs
-        // from the Endpoints object. who wrote this api anyway? /me raises hand. whoops.
-        cache.initialize(endpoints)
-        mkNameTree
-      }
-
-
-      ns.endpoints(serviceName)
+    val endpointsAct: Activity[EndpointsCache] =
+      mkApi(nsName).endpoints(serviceName)
         .activity(initCache, labelSelector = labelSelector) { (_, event) =>
           // and similarly update then get is not great programming either
           cache.update(event)
-          mkNameTree
+          cache
         }
-    }
 
-    Try(portName.toInt).toOption match {
-      case Some(portNumber) =>
-        portCacheAct.flatMap { portCache =>
-          val portStates: Var[Activity.State[NameTree[Name]]] =
-            cache.lookupNumberedPort(nsName, serviceName, portNumber, portCache)
-              .map {
-                case Some(addr) =>
-                  val nt = NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
-                  Activity.Ok(nt)
-                case None => Activity.Ok(NameTree.Neg)
-              }
-          Activity(portStates)
+
+    Try(portName.toInt).toOption
+      .map { portNumber =>
+        endpointsAct.join(portCacheAct).map {
+          case (endpointsCache, portCache) => ???
+          // TODO: get addr for numbered port...
         }
-      case None => endpointsAct(portName)
-    }
-
-
+      }
+      .getOrElse {
+        endpointsAct.map { cache => cache.get(nsName, portName, serviceName) }
+      }
+      .map {
+        case Some(addr) => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
+        case None => NameTree.Neg
+      }
   }
 }
 
