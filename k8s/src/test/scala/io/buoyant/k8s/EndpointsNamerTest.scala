@@ -442,13 +442,12 @@ class EndpointsNamerTest extends FunSuite with Awaits {
       s"${NonWatchPath}namespaces/srv/endpoints/auth" -> Auth,
       s"${NonWatchPath}namespaces/srv/endpoints/empty-subset" -> Empty,
       s"${NonWatchPath}namespaces/srv/endpoints/projects" -> Projects,
-      s"${NonWatchPath}namespaces/srv/endpoints/events" -> Events,
-      s"$NonWatchPath$ServicesPath" -> Services
+      s"${NonWatchPath}namespaces/srv/endpoints/events" -> Events
     )
   }
 
   trait Fixtures {
-    @volatile var doInit, didInit, doScaleUp, doScaleDown, doFail = new Promise[Unit]
+    @volatile var doInit, didInit, doScaleUp, doScaleDown, doFail, didServices = new Promise[Unit]
     @volatile var writer: Writer = null
 
     val service = Service.mk[Request, Response] {
@@ -459,7 +458,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
       case req if req.uri.startsWith(s"$NonWatchPath$ServicesPath") =>
         val rsp = Response()
         rsp.content = Rsps.Services
-        Future.value(rsp)
+        Future.value(rsp).onSuccess { _ => val _ = didServices.setDone() }
       case req if req.uri.startsWith(s"$WatchPath$ServicesPath") =>
         val rsp = Response()
         Future.value(rsp)
@@ -728,6 +727,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
       assert(state == Activity.Pending)
       doInit.setDone()
+      await(didServices)
 
       assert(addrs == Set(Address("10.248.4.9", 54321), Address("10.248.8.9", 54321), Address("10.248.7.11", 54321)))
     }
@@ -740,7 +740,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
       assert(state == Activity.Pending)
       doInit.setDone()
-
+      await(didServices)
       assert(addrs == Set(Address("10.248.4.9", 9990), Address("10.248.8.9", 9990), Address("10.248.7.11", 9990)))
     }
   }
