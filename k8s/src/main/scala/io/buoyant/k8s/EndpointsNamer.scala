@@ -34,14 +34,14 @@ class MultiNsNamer(
       case (id@Path.Utf8(nsName, portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        val portCache = PortCache.fromService(mkApi(nsName).service(serviceName))
+        val portCache = PortMappingCache.fromService(mkApi(nsName).service(serviceName))
         lookupServices(nsName, portName, serviceName, portCache, id, residual)
 
       case (id@Path.Utf8(nsName, portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        val portCache = PortCache.fromService(mkApi(nsName).service(serviceName))
+        val portCache = PortMappingCache.fromService(mkApi(nsName).service(serviceName))
         lookupServices(nsName, portName, serviceName, portCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(nsName, portName, serviceName), Some(label)) =>
@@ -86,14 +86,14 @@ class SingleNsNamer(
       case (id@Path.Utf8(portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        val portCache = PortCache.fromService(mkApi(nsName).service(serviceName))
+        val portCache = PortMappingCache.fromService(mkApi(nsName).service(serviceName))
         lookupServices(nsName, portName, serviceName, portCache, id, residual)
 
       case (id@Path.Utf8(portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        val portCache = PortCache.fromService(mkApi(nsName).service(serviceName))
+        val portCache = PortMappingCache.fromService(mkApi(nsName).service(serviceName))
         lookupServices(nsName, portName, serviceName, portCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(portName, serviceName), Some(label)) =>
@@ -135,7 +135,7 @@ abstract class EndpointsNamer(
     nsName: String,
     portName: String,
     serviceName: String,
-    portCacheAct: Activity[PortCache],
+    portCacheAct: Activity[PortMappingCache],
     id: Path,
     residual: Path,
     labelSelector: Option[String] = None
@@ -169,7 +169,9 @@ abstract class EndpointsNamer(
         }
       }
       .getOrElse {
-        endpointsAct.map { cache => cache.get(nsName, portName, serviceName) }
+        endpointsAct.map { cache =>
+          cache.get(nsName, portName, serviceName)
+        }
       }
       .map {
         case Some(addr) => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
