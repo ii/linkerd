@@ -482,11 +482,108 @@ class EndpointsNamerTest extends FunSuite with Awaits {
           |  }
           |}""".stripMargin
       )
-
+      val Events = Buf.Utf8(
+        """
+          |{
+          |  "kind": "Service",
+          |  "apiVersion": "v1",
+          |  "metadata": {
+          |    "creationTimestamp": "2017-03-24T03:32:27Z",
+          |    "labels": {
+          |      "name": "events"
+          |    },
+          |    "name": "events",
+          |    "namespace": "srv",
+          |    "resourceVersion": "33186981",
+          |    "selfLink": "/api/v1/namespaces/srv/services/events",
+          |    "uid": "8122d7d0-1042-11e7-b340-42010af00006"
+          |  },
+          |  "spec": {
+          |    "clusterIP": "10.199.240.9",
+          |    "ports": [
+          |      {
+          |        "name": "http",
+          |        "port": 80,
+          |        "protocol": "TCP",
+          |        "targetPort": 54321
+          |      },
+          |      {
+          |        "name": "admin",
+          |        "port": 9990,
+          |        "protocol": "TCP"
+          |      }
+          |    ],
+          |    "selector": {
+          |      "name": "events"
+          |    },
+          |    "sessionAffinity": "None",
+          |    "type": "LoadBalancer"
+          |  },
+          |  "status": {
+          |    "loadBalancer": {
+          |      "ingress": [
+          |        {
+          |          "hostname": "linkerd.io"
+          |        }
+          |      ]
+          |    }
+          |  }
+          |}
+        """.stripMargin
+      )
+      val Projects = Buf.Utf8(
+        """
+          |{
+          |    "kind": "Service",
+          |    "apiVersion": "v1",
+          |    "metadata": {
+          |      "creationTimestamp": "2017-03-24T03:32:27Z",
+          |      "labels": {
+          |        "name": "projects"
+          |      },
+          |      "name": "projects",
+          |      "namespace": "srv",
+          |      "resourceVersion": "33186980",
+          |      "selfLink": "/api/v1/namespaces/srv/services/projects",
+          |      "uid": "8122d7d0-1042-11e7-b340-42010af00005"
+          |    },
+          |    "spec": {
+          |      "clusterIP": "10.199.240.9",
+          |      "ports": [
+          |        {
+          |          "name": "http",
+          |          "port": 80,
+          |          "protocol": "TCP",
+          |          "targetPort": 54321
+          |        },
+          |        {
+          |          "name": "admin",
+          |          "port": 9990,
+          |          "protocol": "TCP"
+          |        }
+          |      ],
+          |      "selector": {
+          |        "name": "projects"
+          |      },
+          |      "sessionAffinity": "None",
+          |      "type": "LoadBalancer"
+          |    },
+          |    "status": {
+          |      "loadBalancer": {}
+          |    }
+          |}
+        """.stripMargin
+      )
+      val Responses = Map[String, Buf](
+        s"${NonWatchPath}namespaces/srv/services/sessions" -> Sessions,
+        s"${NonWatchPath}namespaces/srv/services/auth" -> Auth,
+        s"${NonWatchPath}namespaces/srv/services/empty-subset" -> Empty,
+        s"${NonWatchPath}namespaces/srv/services/projects" -> Projects,
+        s"${NonWatchPath}namespaces/srv/services/events" -> Events
+      )
       val All = Buf
         .Utf8(
           """{"apiVersion":"v1","items":[{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"sessions"},"name":"sessions","namespace":"srv","resourceVersion":"33186979","selfLink":"/api/v1/namespaces/srv/services/sessions","uid":"8122d7d0-1042-11e7-b340-42010af00004"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"sessions"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"ip":"35.184.61.229"}]}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"projects"},"name":"projects","namespace":"srv","resourceVersion":"33186980","selfLink":"/api/v1/namespaces/srv/services/projects","uid":"8122d7d0-1042-11e7-b340-42010af00005"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"projects"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"events"},"name":"events","namespace":"srv","resourceVersion":"33186981","selfLink":"/api/v1/namespaces/srv/services/events","uid":"8122d7d0-1042-11e7-b340-42010af00006"},"spec":{"clusterIP":"10.199.240.9","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":54321},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"events"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"linkerd.io"}]}}},{"metadata":{"creationTimestamp":"2017-03-24T03:32:27Z","labels":{"name":"auth"},"name":"auth","namespace":"srv","resourceVersion":"33186981","selfLink":"/api/v1/namespaces/srv/services/auth","uid":"8122d7d0-1042-11e7-b340-42010af00007"},"spec":{"clusterIP":"10.199.240.10","ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":"http"},{"name":"admin","port":9990,"protocol":"TCP"}],"selector":{"name":"auth"},"sessionAffinity":"None","type":"LoadBalancer"},"status":{"loadBalancer":{"ingress":[{"hostname":"linkerd.io"}]}}}],"kind":"ServiceList","metadata":{"resourceVersion":"33787896","selfLink":"/api/v1/namespaces/srv/services"}}""")
-
     }
 
     val Inits = Map[String, Buf](
@@ -507,9 +604,9 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         val rsp = Response()
         rsp.content = Rsps.Inits(req.uri)
         doInit before Future.value(rsp)
-      case req if req.uri.startsWith(s"$NonWatchPath${ServicesPath}sessions") =>
+      case req if Rsps.Services.Responses.contains(req.uri) =>
         val rsp = Response()
-        rsp.content = Rsps.Services.Sessions
+        rsp.content = Rsps.Services.Responses(req.uri)
         Future.value(rsp).onSuccess { _ => val _ = didServices.setDone() }
       //      case req if req.uri.startsWith(s"$NonWatchPath$ServicesPath") =>
       //        val rsp = Response()
@@ -602,14 +699,11 @@ class EndpointsNamerTest extends FunSuite with Awaits {
         request = req
         val rsp = Response()
         Future.value(rsp)
-      case req if req.uri.startsWith(s"$NonWatchPath${ServicesPath}sessions") =>
+      case req if Rsps.Services.Responses.contains(req.uri) =>
+        request = req
         val rsp = Response()
-        rsp.content = Rsps.Services.Sessions
+        rsp.content = Rsps.Services.Responses(req.uri)
         Future.value(rsp)
-      //      case req if req.uri.startsWith(s"$NonWatchPath$ServicesPath") =>
-      //        val rsp = Response()
-      //        rsp.content = Rsps.Services.All
-      //        Future.value(rsp)
       case req if req.uri.startsWith(s"$WatchPath$ServicesPath") =>
         val rsp = Response()
         Future.value(rsp)
@@ -624,7 +718,8 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     }
 
     assert(
-      request.uri.startsWith(s"$WatchPath$SessionsPath"),
+      request.uri.startsWith(s"$WatchPath$SessionsPath") ||
+        request.uri.startsWith(s"$NonWatchPath${ServicesPath}sessions"),
       "Request was not sent to correct namespace"
     )
     state match {
