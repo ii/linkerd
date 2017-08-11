@@ -6,9 +6,9 @@ import com.twitter.util.{Activity, Var}
 import io.buoyant.k8s.Ns.ObjectCache
 import scala.collection.mutable
 
-class PortCache extends ObjectCache[v1.Service, v1.ServiceWatch] with Stabilize {
+class PortCache extends ObjectCache[v1.Service, v1.ServiceWatch] {
   //  private[this] var ports = Var(mutable.Map.empty[String, Address])
-  private[this] var portMap = Var(mutable.Map.empty[Int, String])
+  private[this] var portMap = mutable.Map.empty[Int, String]
 
   private[this] def addPorts(service: v1.Service): Unit =
   // for each port in the
@@ -29,7 +29,7 @@ class PortCache extends ObjectCache[v1.Service, v1.ServiceWatch] with Stabilize 
 
       // then, if the port is remapped to a target port, map the port
       // to the target port; otherwise, map the port to itself.
-      portMap() += port -> targetPort.getOrElse(port.toString)
+      portMap += port -> targetPort.getOrElse(port.toString)
     }
 
   /**
@@ -39,9 +39,8 @@ class PortCache extends ObjectCache[v1.Service, v1.ServiceWatch] with Stabilize 
    * @param port
    * @return
    */
-  def get(port: Int): Var[Option[Var[String]]] = synchronized {
-    val unstable = portMap.map { ports => ports.get(port) }
-    stabilize(unstable)
+  def get(port: Int): Option[String] = synchronized {
+    portMap.get(port)
   }
 
   //  /**

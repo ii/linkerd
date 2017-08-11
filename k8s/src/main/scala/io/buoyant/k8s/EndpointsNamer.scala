@@ -161,8 +161,11 @@ abstract class EndpointsNamer(
     Try(portName.toInt).toOption
       .map { portNumber =>
         endpointsAct.join(portCacheAct).map {
-          case (endpointsCache, portCache) => ???
-          // TODO: get addr for numbered port...
+          case (endpointsCache, portCache) =>
+            // TODO: get addr for numbered port...
+            portCache.get(portNumber).flatMap {
+              portName2 => endpointsCache.get(nsName, portName2, serviceName)
+            }
         }
       }
       .getOrElse {
@@ -197,17 +200,17 @@ class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
    * of the return type tracks whether the port exists and the inner Var[Addr] tracks the actual
    * endpoints if the port does exist.
    */
-  private[k8s] def lookupNumberedPort(
-    nsName: String,
-    serviceName: String,
-    portNumber: Int,
-    portCache: PortCache
-  ): Var[Option[Var[Addr]]] =
-    portCache.get(portNumber).flatMap {
-      case Some(targetPort) =>
-        targetPort.flatMap { target => Var(get(nsName, target, serviceName)) }
-      case None => Var(None)
-    }
+  //  private[k8s] def lookupNumberedPort(
+  //    nsName: String,
+  //    serviceName: String,
+  //    portNumber: Int,
+  //    portCache: PortCache
+  //  ): Var[Option[Var[Addr]]] =
+  //    portCache.get(portNumber).flatMap {
+  //      case Some(targetPort) =>
+  //        targetPort.flatMap { target => Var(get(nsName, target, serviceName)) }
+  //      case None => Var(None)
+  //    }
 
   def initialize(endpoints: v1.Endpoints): Unit =
     add(endpoints)
