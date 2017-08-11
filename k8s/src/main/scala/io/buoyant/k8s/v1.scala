@@ -146,6 +146,13 @@ package object v1 {
     @inline
     def subsetsSeq: Seq[EndpointSubset] =
     subsets.getOrElse(Seq.empty)
+
+    @JsonIgnore
+    @inline
+    def getName: Option[String] =
+      for {meta <- metadata
+           name <- meta.name}
+        yield name
   }
 
   case class EndpointSubset(
