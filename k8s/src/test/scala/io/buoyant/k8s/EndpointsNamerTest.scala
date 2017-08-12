@@ -435,6 +435,55 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     )
 
     object Services {
+      val Auth = Buf.Utf8(
+        """
+          |{
+          | "kind": "Service",
+          | "apiVersion": "v1",
+          | "metadata": {
+          |   "creationTimestamp": "2017-03-24T03:32:27Z",
+          |   "labels": {
+          |     "name": "auth"
+          |   },
+          |   "name": "auth",
+          |   "namespace": "srv",
+          |   "resourceVersion": "33186981",
+          |   "selfLink": "/api/v1/namespaces/srv/services/auth",
+          |   "uid": "8122d7d0-1042-11e7-b340-42010af00007"
+          | },
+          | "spec": {
+          |   "clusterIP": "10.199.240.10",
+          |   "ports": [
+          |     {
+          |       "name": "http",
+          |       "port": 80,
+          |       "protocol": "TCP",
+          |       "targetPort": "http"
+          |     },
+          |     {
+          |       "name": "admin",
+          |       "port": 9990,
+          |       "protocol": "TCP"
+          |     }
+          |   ],
+          |   "selector": {
+          |     "name": "auth"
+          |   },
+          |   "sessionAffinity": "None",
+          |   "type": "LoadBalancer"
+          | },
+          | "status": {
+          |   "loadBalancer": {
+          |     "ingress": [
+          |       {
+          |         "hostname": "linkerd.io"
+          |       }
+          |     ]
+          |   }
+          | }
+          |}
+        """.stripMargin
+      )
       val Sessions = Buf.Utf8(
         """{
           |  "kind": "Service",
