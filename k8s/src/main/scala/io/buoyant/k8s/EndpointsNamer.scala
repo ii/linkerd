@@ -125,14 +125,6 @@ abstract class EndpointsNamer(
   val cache = new EndpointsCache
   protected[this] val variablePrefixLength: Int
 
-  @inline
-  private[this] def mkNameTree(id: Path, residual: Path)
-    (maybeAddrs: Option[Var[Addr]]): Activity.State[NameTree[Name]] =
-    maybeAddrs match {
-      case Some(addrs) => Activity.Ok(NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual)))
-      case None => Activity.Ok(NameTree.Neg)
-    }
-
   private[k8s] def lookupServices(
     nsName: String,
     portName: String,
@@ -143,7 +135,11 @@ abstract class EndpointsNamer(
     labelSelector: Option[String] = None
   ): Activity[NameTree[Name]] = {
 
-    val nameTree = mkNameTree(id, residual) _
+    @inline def mkNameTree(maybeAddrs: Option[Var[Addr]]): Activity.State[NameTree[Name]] =
+      maybeAddrs match {
+        case Some(addrs) => Activity.Ok(NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual)))
+        case None => Activity.Ok(NameTree.Neg)
+      }
 
     @inline def initCache(endpoints: v1.Endpoints): EndpointsCache = {
       cache.initialize(endpoints)
@@ -153,8 +149,7 @@ abstract class EndpointsNamer(
     @inline def getService(f: SvcCache => Var[Option[Var[Addr]]])(endpoints: EndpointsCache) =
       endpoints.services.flatMap { services =>
         services.get(serviceName).map { service =>
-          val lookup = f(service)
-            .map(nameTree)
+          val lookup = f(service).map(mkNameTree)
           Activity(lookup)
         }.getOrElse(Activity.value(NameTree.Neg))
       }
