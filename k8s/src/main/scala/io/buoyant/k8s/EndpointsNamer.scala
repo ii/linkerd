@@ -136,6 +136,15 @@ abstract class EndpointsNamer(
   //    override protected def mkCache(name: String) = new PortCache()
   //  }
 
+  @inline
+  private[this] def mkNameTree(id: Path, residual: Path)
+    (maybeAddrs: Option[Var[Addr]]): Activity.State[NameTree[Name]] =
+    maybeAddrs match {
+      case Some(addrs) => Activity.Ok(NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual)))
+      case None => Activity.Ok(NameTree.Neg)
+    }
+
+
   private[k8s] def lookupServices(
     nsName: String,
     portName: String,
@@ -146,6 +155,7 @@ abstract class EndpointsNamer(
     labelSelector: Option[String] = None
   ): Activity[NameTree[Name]] = {
 
+    val nameTree = mkNameTree(id, residual) _
 
     @inline def initCache(endpoints: v1.Endpoints): EndpointsCache = {
       // wish i didn't have to call initialize then get here, just to get the addrs
@@ -169,55 +179,21 @@ abstract class EndpointsNamer(
           case None =>
             log.debug("k8s ns %s service %s missing", nsName, serviceName)
             Activity.value(NameTree.Neg)
-
           case Some(service) =>
             log.debug("k8s ns %s service %s found", nsName, serviceName)
-            val state: Var[Activity.State[NameTree[Name]]] = Try(portName.toInt).toOption match {
+            val lookup = Try(portName.toInt).toOption match {
               case Some(portNumber) =>
-                lookupNumberedPort(ports, service, serviceName, portNumber).map {
-                  case Some(vaddr) =>
-                    log
-                      .debug("k8s ns %s service %s port :%d found + %s", nsName, serviceName, portNumber, residual.show)
-                    Activity.Ok(NameTree.Leaf(Name.Bound(vaddr, idPrefix ++ id, residual)))
-                  case None =>
-                    log.debug("k8s ns %s service %s port :%d missing", nsName, serviceName, portNumber)
-                    Activity.Ok(NameTree.Neg)
-                }
+                lookupNumberedPort(ports, service, serviceName, portNumber)
               case None =>
-                service.port(portName).map {
-                  case Some(addr) =>
-                    log.debug("k8s ns %s service %s port %s found + %s", nsName, serviceName, portName, residual.show)
-                    Activity.Ok(NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual)))
-                  case None =>
-                    log.debug("k8s ns %s service %s port %s missing", nsName, serviceName, portName)
-                    Activity.Ok(NameTree.Neg)
-                }
+                service.port(portName)
+            }
+            val state = lookup.map {
+              nameTree
             }
             Activity(state)
         }
       }
     }
-
-    //
-    //    Try(portName.toInt).toOption
-    //      .map { portNumber =>
-    //        endpointsAct.join(portCacheAct).map {
-    //          case (endpointsCache, portCache) =>
-    //            // TODO: get addr for numbered port...
-    //            portCache.get(portNumber).flatMap {
-    //              portName2 => endpointsCache.get(nsName, portName2, serviceName)
-    //            }
-    //        }
-    //      }
-    //      .getOrElse {
-    //        endpointsAct.flatMap { cache =>
-    //          cache.services(nsName, portName, serviceName)
-    //        }
-    //      }
-    //      .map {
-    //        case Some(addr) => NameTree.Leaf(Name.Bound(addr, idPrefix ++ id, residual))
-    //        case None => NameTree.Neg
-    //      }
   }
 }
 
