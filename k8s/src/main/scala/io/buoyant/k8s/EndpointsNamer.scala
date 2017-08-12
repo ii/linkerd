@@ -165,7 +165,7 @@ abstract class EndpointsNamer(
       cache
     }
 
-    @inline def getService(endpoints: EndpointsCache)(f: SvcCache => Var[Option[Var[Addr]]]) =
+    @inline def getService(f: SvcCache => Var[Option[Var[Addr]]])(endpoints: EndpointsCache) =
       endpoints.services.flatMap { services =>
         services.get(serviceName).map { service =>
           val lookup = f(service)
@@ -187,14 +187,14 @@ abstract class EndpointsNamer(
       case Some(portNumber) =>
         endpointsAct.join(portCacheAct)
           .flatMap { case ((endpoints, ports)) =>
-            getService(endpoints) { service =>
-              service.lookupNumberedPort(ports, portNumber)
-            }
+            getService {
+              _.lookupNumberedPort(ports, portNumber)
+            }(endpoints)
           }
       case None =>
-        endpointsAct.flatMap { endpoints =>
-          getService(endpoints) { service =>
-            service.port(portName)
+        endpointsAct.flatMap {
+          getService {
+            _.port(portName)
           }
         }
     }
