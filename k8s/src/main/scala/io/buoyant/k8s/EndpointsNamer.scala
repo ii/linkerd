@@ -120,10 +120,11 @@ abstract class EndpointsNamer(
   backoff: Stream[Duration] = EndpointsNamer.DefaultBackoff
 )(implicit timer: Timer = DefaultTimer)
   extends Namer {
+
+  import EndpointsNamer._
   val cache = new EndpointsCache
   protected[this] val variablePrefixLength: Int
 
-  import EndpointsNamer._
 
   //  private[k8s] val serviceNs = new Ns[
   //    v1.Service,
@@ -164,35 +165,38 @@ abstract class EndpointsNamer(
       cache
     }
 
+    @inline def getService(endpoints: EndpointsCache)(f: SvcCache => Var[Option[Var[Addr]]]) =
+      endpoints.services.flatMap { services =>
+        services.get(serviceName).map { service =>
+          val lookup = f(service)
+            .map(nameTree)
+          Activity(lookup)
+        }.getOrElse(Activity.value(NameTree.Neg))
+      }
+
     val endpointsAct: Activity[EndpointsCache] =
-      mkApi(nsName).endpoints(serviceName)
+      mkApi(nsName)
+        .endpoints(serviceName)
         .activity(initCache, labelSelector = labelSelector) { (_, event) =>
           // and similarly update then get is not great programming either
           cache.update(event)
           cache
         }
 
-    endpointsAct.join(portCacheAct).flatMap { case ((endpoints, ports)) =>
-      endpoints.services.flatMap { services =>
-        log.debug("k8s ns %s initial state: %s", nsName, services.keys.mkString(", "))
-        services.get(serviceName) match {
-          case None =>
-            log.debug("k8s ns %s service %s missing", nsName, serviceName)
-            Activity.value(NameTree.Neg)
-          case Some(service) =>
-            log.debug("k8s ns %s service %s found", nsName, serviceName)
-            val lookup = Try(portName.toInt).toOption match {
-              case Some(portNumber) =>
-                lookupNumberedPort(ports, service, serviceName, portNumber)
-              case None =>
-                service.port(portName)
+    Try(portName.toInt).toOption match {
+      case Some(portNumber) =>
+        endpointsAct.join(portCacheAct)
+          .flatMap { case ((endpoints, ports)) =>
+            getService(endpoints) { service =>
+              service.lookupNumberedPort(ports, portNumber)
             }
-            val state = lookup.map {
-              nameTree
-            }
-            Activity(state)
+          }
+      case None =>
+        endpointsAct.flatMap { endpoints =>
+          getService(endpoints) { service =>
+            service.port(portName)
+          }
         }
-      }
     }
   }
 }
@@ -201,32 +205,6 @@ object EndpointsNamer {
   val DefaultBackoff: Stream[Duration] =
     Backoff.exponentialJittered(10.milliseconds, 10.seconds)
 
-  /**
-   * For a given port number, apply the port mapping of the service.  The target port of the port
-   * mapping may be a named port and the named port may or may not exist.  The outer Var[Option]
-   * of the return type tracks whether the port exists and the inner Var[Addr] tracks the actual
-   * endpoints if the port does exist.
-   */
-  protected def lookupNumberedPort(
-    mappings: PortMappingCache,
-    svc: SvcCache,
-    serviceName: String,
-    portNumber: Int
-  ): Var[Option[Var[Addr]]] =
-    mappings(portNumber)
-      .map { targetPort =>
-        // target may be an int (port number) or string (port name)
-        Try(targetPort.toInt).toOption match {
-          case Some(targetPortNumber) =>
-            // target port is a number and therefore exists
-            Var(Some(svc.port(targetPortNumber)))
-          case None =>
-            // target port is a name and may or may not exist
-            svc.port(targetPort)
-        }
-      }.getOrElse {
-      Var(None)
-    }
 
   protected type PortMap = Map[String, Int]
 
@@ -239,7 +217,31 @@ object EndpointsNamer {
 
   protected case class Svc(endpoints: Set[Endpoint], ports: PortMap)
 
-  protected case class SvcCache(name: String, init: Svc) {
+  protected[EndpointsNamer] case class SvcCache(name: String, init: Svc) {
+    /**
+     * For a given port number, apply the port mapping of the service.  The target port of the port
+     * mapping may be a named port and the named port may or may not exist.  The outer Var[Option]
+     * of the return type tracks whether the port exists and the inner Var[Addr] tracks the actual
+     * endpoints if the port does exist.
+     */
+    def lookupNumberedPort(
+      mappings: PortMappingCache,
+      portNumber: Int
+    ): Var[Option[Var[Addr]]] =
+      mappings(portNumber)
+        .map { targetPort =>
+          // target may be an int (port number) or string (port name)
+          Try(targetPort.toInt).toOption match {
+            case Some(targetPortNumber) =>
+              // target port is a number and therefore exists
+              Var(Some(port(targetPortNumber)))
+            case None =>
+              // target port is a name and may or may not exist
+              port(targetPort)
+          }
+        }.getOrElse {
+        Var(None)
+      }
 
     private[this] val endpointsState = Var[Set[Endpoint]](init.endpoints)
     private[this] val portsState = Var[Map[String, Int]](init.ports)
