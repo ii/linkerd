@@ -324,7 +324,7 @@ object EndpointsNamer {
         (subset.toEndpoints, subset.toPortMap)
       }
       val (endpoints, ports) = result.unzip
-      (endpoints.flatten.toSet, ports.reduce(_ ++ _))
+      (endpoints.flatten.toSet, if (ports.isEmpty) Map.empty else ports.reduce(_ ++ _))
     }
 
     @inline def toSvc: Svc = Svc.tupled(toEndpointsAndPorts)
