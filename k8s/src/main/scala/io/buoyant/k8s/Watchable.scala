@@ -217,58 +217,6 @@ private[k8s] abstract class Watchable[O <: KubeObject: TypeReference, W <: Watch
       }
 
     })
-
-  // like flatmap for activity. this is the Worst Name Ever
-  def flactivity[T](
-    convert: G => Activity.State[T],
-    labelSelector: Option[String] = None,
-    fieldSelector: Option[String] = None
-  )(onEvent: W => Activity.State[T]): Activity[T] =
-    Activity(Var.async[Activity.State[T]](Activity.Pending) { state =>
-      val closeRef = new AtomicReference[Closable](Closable.nop)
-      val pending = get(
-        labelSelector = labelSelector,
-        fieldSelector = fieldSelector,
-        retryIndefinitely = true)
-        // since we're retrying the GET request forever, this `onFailure`
-        // should probably never fire. but who knows?
-        .onFailure { e =>
-        log.warning(s"k8s failed to get resource at $path: $e")
-        state.update(Activity.Failed(e))
-      }
-        // otherwise, update the activity with the initial state, and
-        // apply the onEvent function to each successive watch event in
-        // the stream.
-        .onSuccess { initial =>
-        val initialState = convert(initial)
-        state.update(initialState)
-
-        val version = if (watchResourceVersion) {
-          initial.metadata.flatMap(_.resourceVersion)
-        } else {
-          None
-        }
-
-        val (stream, close) = watch(
-          labelSelector = labelSelector,
-          fieldSelector = fieldSelector,
-          resourceVersion = version
-        )
-
-        closeRef.set(close)
-        val _ = stream.foldLeft(initialState) { (_, event) =>
-          val state1 = onEvent(event)
-          state.update(state1)
-          state1
-        }
-      }
-
-      Closable.make { t =>
-        pending.raise(Closed)
-        Closable.ref(closeRef).close(t)
-      }
-
-    })
 }
 
 object Watchable {
