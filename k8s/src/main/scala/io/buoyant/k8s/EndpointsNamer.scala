@@ -6,7 +6,6 @@ import com.twitter.finagle.{Service => _, _}
 import com.twitter.finagle.service.Backoff
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.util._
-import io.buoyant.k8s.EndpointsNamer.EndpointsCache
 import io.buoyant.namer.Metadata
 import scala.collection.{mutable, breakOut}
 import scala.language.implicitConversions
@@ -48,7 +47,8 @@ class MultiNsNamer(
         lookupServices(nsName, portName, serviceName, portCache, id, residual, labelSelector)
 
       case (id@Path.Utf8(nsName, portName, serviceName), Some(label)) =>
-        log.debug("k8s lookup: ns %s service %s label value segment missing for label %s", nsName, serviceName, portName, label)
+        log.debug("k8s lookup: ns %s service %s label value segment missing for label %s",
+                  nsName, serviceName, portName, label)
         Activity.value(NameTree.Neg)
 
       case _ =>
@@ -135,35 +135,80 @@ abstract class EndpointsNamer(
     labelSelector: Option[String] = None
   ): Activity[NameTree[Name]] = {
 
-    @inline def mkNameTree(maybeAddrs: Option[Var[Addr]]): Activity.State[NameTree[Name]] =
-      maybeAddrs match {
-        case Some(addrs) => Activity.Ok(NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual)))
-        case None => Activity.Ok(NameTree.Neg)
-      }
+    /**
+     * Turn an `Option[Var[Addr]]` (as returned by `SvcCache.lookupNumberedPort`
+     * or `SvcCache.port`) to an `Activity.State` containing a `NameTree`,
+     * using the `id` and `residual` arguments passed to `lookupServices`.
+     * @param lookup either `Some(Var[Addr])` if the lookup was successful,
+     *                   or `None` if no service was found.
+     * @return an `Activity.Ok` containing either a `NameTree.Leaf` with a
+     *         `Name.Bound` to `addrs` if `lookup` is defined, or
+     *         `NameTree.Neg` if `lookup` is empty
+     */
+    @inline
+    def mkNameTree(lookup: Option[Var[Addr]]): Activity.State[NameTree[Name]] =
+      Activity.Ok(lookup match {
+        case Some(addrs) =>
+          NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual))
+        case None => NameTree.Neg
+      })
 
     @inline def initCache(endpoints: v1.Endpoints): EndpointsCache = {
       cache.initialize(endpoints)
       cache
     }
 
-    @inline def getService(f: SvcCache => Var[Option[Var[Addr]]])(endpoints: EndpointsCache) =
+    /**
+     * Look up the service named `serviceName` from `endpoints`, and apply
+     * function `f` to the result if it is defined.
+     * @param f a function extracting a `Var[Option[Var[Addr]]]` from a
+     *          `SvcCache`
+     * @param endpoints the `EndpointsCache` to look up the service from
+     * @return an `Activity` containing either the state of the service
+     *         named by `serviceName` if one was found, or `NameTree.Neg`
+     *         if it was undefined.
+     */
+    @inline
+    def getService(f: SvcCache => Var[Option[Var[Addr]]])
+                  (endpoints: EndpointsCache): Activity[NameTree[Name]] =
+      // note: this would look nicer as a for-comprehension, but `for`
+      //       doesn't like `Activity`, since it has `flatMap` but no
+      //       `withFilter`.
       endpoints.services.flatMap { services =>
         services.get(serviceName).map { service =>
-          val lookup = f(service).map(mkNameTree)
-          Activity(lookup)
-        }.getOrElse(Activity.value(NameTree.Neg))
+          // we found a `SvcCache` for `serviceName` – apply `f` to
+          // it to extract the corresponding `Addr`, and make a
+          // bound `NameTree` if it was defined.
+          val state = f(service).map(mkNameTree)
+          Activity(state)
+        }.getOrElse {
+          // TODO: log here
+          Activity.value(NameTree.Neg)
+        }
       }
 
+    // make an `Activity` for the `EndpointsCache` named by `serviceName`
+    // in `nsName`.
+    // TODO: memoize?
     val endpointsAct: Activity[EndpointsCache] =
       mkApi(nsName)
         .endpoints(serviceName)
         .activity(initCache, labelSelector = labelSelector) { (_, event) =>
+          // TODO: do `cache.update` and `cache.initialize` really need to be
+          //       two separate functions?
           cache.update(event)
           cache
         }
 
     Try(portName.toInt).toOption match {
       case Some(portNumber) =>
+        // if `portName` was successfully parsed as an `int`, then
+        // we are dealing with a numbered port. we will thus also
+        // need the port mappings cache, so join its activity with
+        // the endpoints cache activity.
+
+        // TODO: can we take the port mapping cache by value so we
+        //       don't have to create it if it isn't needed?
         endpointsAct.join(portCacheAct)
           .flatMap { case ((endpoints, ports)) =>
             getService {
@@ -171,6 +216,8 @@ abstract class EndpointsNamer(
             }(endpoints)
           }
       case None =>
+        // otherwise, we are dealing with a named port, so we can
+        // just look up the service from the endpointsCache
         endpointsAct.flatMap {
           getService {
             _.port(portName)
@@ -199,12 +246,14 @@ object EndpointsNamer {
   protected[EndpointsNamer] case class SvcCache(name: String, init: Svc) {
 
     /**
-     * For a given port number, apply the port mapping of the service.  The target port of the port
-     * mapping may be a named port and the named port may or may not exist.  The outer Var[Option]
-     * of the return type tracks whether the port exists and the inner Var[Addr] tracks the actual
-     * endpoints if the port does exist.
+     * For a given port number, apply the port mapping of the service.
+     * The target port of the port mapping may be a named port and the
+     * named port may or may not exist. The outer `Var[Option]` of the
+     * return type tracks whether the port exists, and the inner
+     * `Var[Addr]` tracks the actual  endpoints if the port does exist.
      */
-    def lookupNumberedPort(mappings: PortMappingCache, portNumber: Int): Var[Option[Var[Addr]]] =
+    def lookupNumberedPort(mappings: PortMappingCache, portNumber: Int)
+    : Var[Option[Var[Addr]]] =
       mappings(portNumber)
         .map { targetPort =>
           // target may be an int (port number) or string (port name)
@@ -289,7 +338,6 @@ object EndpointsNamer {
 
     private[this] val state = Var[Activity.State[Map[String, SvcCache]]](Activity.Pending)
     val services: Activity[Map[String, SvcCache]] = Activity(state)
-
 
     def initialize(endpoints: v1.Endpoints): Unit =
       add(endpoints)
