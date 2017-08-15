@@ -1,3 +1,7 @@
+## In the next release...
+
+* **Breaking Change**: Removed support for PKCS#1 keys.
+
 ## 1.1.3 2017-08-09
 
 The 1.1.3 release of Linkerd is mostly focused on improving our HTTP/2 support,

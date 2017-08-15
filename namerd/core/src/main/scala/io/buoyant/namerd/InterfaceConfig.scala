@@ -8,7 +8,7 @@ import com.twitter.finagle.{Namer, Path}
 import io.buoyant.config.types.Port
 import io.buoyant.config.{PolymorphicConfig, ConfigInitializer}
 import com.twitter.finagle.buoyant.TlsServerConfig
-import com.twitter.finagle.ssl.server.LegacyKeyServerEngineFactory
+import com.twitter.finagle.netty4.ssl.server.Netty4ServerEngineFactory
 import java.net.{InetAddress, InetSocketAddress}
 
 /**
@@ -25,12 +25,9 @@ abstract class InterfaceConfig extends PolymorphicConfig {
     port.map(_.port).getOrElse(defaultAddr.getPort)
   )
 
-  // The deprecated LegacyKeyServerEngineFactory allows us to accept PKCS#1 formatted keys.
-  // We should remove this and replace it with Netty4ServerEngineFactory once we no longer allow
-  // PKCS#1 keys.
   @JsonIgnore
   @silent
-  def tlsParams = tls.map(_.params(None, LegacyKeyServerEngineFactory)).getOrElse(Stack.Params.empty)
+  def tlsParams = tls.map(_.params(None, Netty4ServerEngineFactory())).getOrElse(Stack.Params.empty)
 
   @JsonIgnore
   protected def defaultAddr: InetSocketAddress
