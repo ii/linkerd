@@ -202,14 +202,12 @@ abstract class EndpointsNamer(
   private[this] def mkNameTree(
     id: Path,
     residual: Path
-  )(lookup: Option[Var[Set[Address]]]): Activity.State[NameTree[Name]] =
-    Activity.Ok(
+  )(lookup: Option[Var[Set[Address]]]): NameTree[Name] =
       lookup.map { addresses =>
         val addrs = addresses.map { Addr.Bound(_) }
         NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual))
       }
       .getOrElse { NameTree.Neg }
-    )
 
   private[k8s] def lookupServices(
     nsName: String,
@@ -220,28 +218,22 @@ abstract class EndpointsNamer(
     labelSelector: Option[String] = None
   ): Activity[NameTree[Name]] = {
     val cache = endpointsCache(nsName, serviceName, labelSelector)
-    Try(portName.toInt).toOption match {
+    val unstable = Try(portName.toInt).toOption match {
       case Some(portNumber) =>
         // if `portName` was successfully parsed as an `int`, then
         // we are dealing with a numbered port. we will thus also
         // need the port mappings from the `Service` API response,
         // so join its activity with the endpoints cache activity.
         cache.join(numberedPortRemappings(nsName, serviceName, labelSelector))
-          .flatMap { case ((endpoints, ports)) =>
-            val state =
-              endpoints.lookupNumberedPort(ports, portNumber)
-                .map(mkNameTree(id, residual))
-            Activity(state)
+          .map { case ((endpoints, ports)) =>
+            endpoints.lookupNumberedPort(ports, portNumber)
           }
       case None =>
         // otherwise, we are dealing with a named port, so we can
         // just look up the service from the endpointsCache
-        cache.flatMap { endpoints =>
-          val state =
-            endpoints.lookupNamedPort(portName).map(mkNameTree(id, residual))
-          Activity(state)
-        }
+        cache.map { endpoints => endpoints.port(portName) }
     }
+    stabilize(unstable).map { mkNameTree(id, residual) }
   }
 }
 
@@ -260,7 +252,7 @@ object EndpointsNamer {
       Endpoint(InetAddress.getByName(addr.ip), addr.nodeName)
   }
 
-  protected[EndpointsNamer] case class EndpointsCache(endpoints: Set[Endpoint], ports: PortMap) extends Stabilize {
+  protected[EndpointsNamer] class EndpointsCache(var endpoints: Set[Endpoint], var ports: PortMap) extends Stabilize {
     /**
      * For a given port number, apply the port mapping of the service.
      * The target port of the port mapping may be a named port and the
@@ -269,52 +261,43 @@ object EndpointsNamer {
      * `Var[Addr]` tracks the actual  endpoints if the port does exist.
      */
     def lookupNumberedPort(mappings: NumberedPortMap, portNumber: Int)
-    : Var[Option[Var[Set[Address]]]] = {
-      val unstable = mappings.get(portNumber)
-        .map { targetPort =>
+    : Option[Set[Address]] =
+      mappings.get(portNumber)
+        .flatMap { targetPort =>
           // target may be an int (port number) or string (port name)
           Try(targetPort.toInt).toOption match {
             case Some(targetPortNumber) =>
               // target port is a number and therefore exists
-              port(targetPortNumber).map(Some(_))
+              Some(port(targetPortNumber))
             case None =>
               // target port is a name and may or may not exist
               port(targetPort)
           }
-        }.getOrElse { Var(None) }
-      stabilize(unstable)
-    }
-    def lookupNamedPort(portName: String): Var[Option[Var[Set[Address]]]] =
-      stabilize(port(portName))
+        }
 
-    private[this] val _endpoints = Var[Set[Endpoint]](endpoints)
-    private[this] val _portMap = Var[Map[String, Int]](ports)
-
-    def port(portName: String): Var[Option[Set[Address]]] =
-      _portMap.join(_endpoints).map { case ((portState, endpointsState)) =>
-        portState.get(portName).map { portNumber =>
+    def port(portName: String): Option[Set[Address]] =
+        ports.get(portName).map { portNumber =>
           for {
-            Endpoint(ip, nodeName) <- endpointsState
+            Endpoint(ip, nodeName) <- endpoints
             isa = new InetSocketAddress(ip, portNumber)
           } yield Address.Inet(isa, nodeName.map(Metadata.nodeName -> _).toMap)
             .asInstanceOf[Address]
         }
-      }
 
-    def port(portNumber: Int): Var[Set[Address]] =
-      _endpoints.map { endpointsState =>
+
+    def port(portNumber: Int): Set[Address] =
         for {
-          Endpoint(ip, nodeName) <- endpointsState
+          Endpoint(ip, nodeName) <- endpoints
           isa = new InetSocketAddress(ip, portNumber)
         } yield Address.Inet(isa, nodeName.map(Metadata.nodeName -> _).toMap)
           .asInstanceOf[Address]
-      }
+
     def update(endpoints: v1.Endpoints): Unit = {
       val (newEndpoints, newPorts) = endpoints.subsets.toEndpointsAndPorts
 
       synchronized {
-        if (newEndpoints != _endpoints.sample()) _endpoints() = newEndpoints
-        if (newPorts != _portMap.sample()) _portMap() = newPorts
+        this.endpoints = newEndpoints
+        ports = newPorts
       }
     }
   }
@@ -346,8 +329,11 @@ object EndpointsNamer {
   }
 
   protected implicit class RichEndpoints(val endpoints: v1.Endpoints) extends AnyVal {
-    @inline def cache: EndpointsCache =
-      EndpointsCache.tupled(endpoints.subsets.toEndpointsAndPorts)
+    @inline def cache: EndpointsCache = {
+      val (endpts, ports) = endpoints.subsets.toEndpointsAndPorts
+      new EndpointsCache(endpts, ports)
+    }
+
   }
 
 }
