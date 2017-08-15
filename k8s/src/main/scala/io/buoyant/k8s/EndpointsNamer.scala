@@ -285,11 +285,11 @@ object EndpointsNamer {
 
 
     def port(portNumber: Int): Set[Address] =
-        for {
-          Endpoint(ip, nodeName) <- endpoints
-          isa = new InetSocketAddress(ip, portNumber)
-        } yield Address.Inet(isa, nodeName.map(Metadata.nodeName -> _).toMap)
-          .asInstanceOf[Address]
+      for {
+        Endpoint(ip, nodeName) <- endpoints
+        isa = new InetSocketAddress(ip, portNumber)
+      } yield Address.Inet(isa, nodeName.map(Metadata.nodeName -> _).toMap)
+        .asInstanceOf[Address]
 
     def update(endpoints: v1.Endpoints): Unit = {
       val (newEndpoints, newPorts) = endpoints.subsets.toEndpointsAndPorts
