@@ -7,6 +7,7 @@ import com.twitter.finagle.service.Backoff
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.util._
 import io.buoyant.namer.Metadata
+import EndpointsNamer._
 import scala.collection.{mutable, breakOut}
 import scala.language.implicitConversions
 
@@ -115,17 +116,34 @@ abstract class EndpointsNamer(
   labelName: Option[String] = None,
   backoff: Stream[Duration] = EndpointsNamer.DefaultBackoff
 )(implicit timer: Timer = DefaultTimer)
-  extends Namer {
+  extends Namer with Stabilize {
 
   import EndpointsNamer._
-  val cache = new EndpointsCache
   protected[this] val variablePrefixLength: Int
 
-  // TODO: consider memoizing these activities per (ns/service)
-  private[k8s] def getPortMap(nsName: String, serviceName: String)
+  // memoize port remapping watch activities so that we don't have to
+  // create multiple watches on the same `Services` API object.
+  private[this] val portRemappings =
+    mutable.HashMap[(String, String), Activity[NumberedPortMap]]()
+
+  /**
+   * Watch the numbered-port remappings for the service named `serviceName`
+   * in the namespace named `nsName`.
+   * @param nsName the name of the Kubernetes namespace.
+   * @param serviceName the name of the Kubernetes service.
+   * @return an `Activity` containing a `Map[Int, String]` representing the
+   *         port number to port name mappings
+   * @note that the corresponding `Activity` instances are cached so we don't
+   *       create multiple watches on the same Kubernetes objects – meaning,
+   *       if you look up the port remappings in a given (nsName, serviceName)
+   *       pair multiple times, you will always get back the same `Activity`,
+   *       which is created the first time that pair is looked up.
+   */
+  private[k8s] def numberedPortRemappings(nsName: String, serviceName: String)
     : Activity[NumberedPortMap] = {
-    mkApi(nsName)
-      .service(serviceName)
+    def _getPortMap() =
+      mkApi(nsName)
+        .service(serviceName)
         .activity(_.portMappings) {
           case ((oldMap, v1.ServiceAdded(service))) =>
             val newMap = service.portMappings
@@ -154,9 +172,25 @@ abstract class EndpointsNamer(
           case ((oldMap, v1.ServiceError(error))) =>
             log.error(s"k8s ns $nsName service $serviceName watch error $error")
             oldMap
-
-    }
+        }
+    portRemappings.getOrElseUpdate((nsName, serviceName), _getPortMap())
   }
+
+  private[k8s] def endpointsCache(nsName: String, serviceName: String)
+    : Activity[EndpointsCache] =
+    mkApi(nsName)
+      .endpoints(serviceName)
+      .activity(_.cache){ case ((cache, event)) =>
+        event match {
+          case v1.EndpointsAdded(endpoints) => cache.update(endpoints)
+          case v1.EndpointsModified(endpoints) => cache.update(endpoints)
+          case v1.EndpointsDeleted(endpoints) => cache.update(endpoints)
+          case v1.EndpointsError(error) =>
+            log.debug(s"k8s ns $nsName service $serviceName endpoints watch error $error")
+        }
+        cache
+      }
+
 
   private[k8s] def lookupServices(
     nsName: String,
@@ -178,16 +212,9 @@ abstract class EndpointsNamer(
      *         `NameTree.Neg` if `lookup` is empty
      */
     @inline
-    def mkNameTree(lookup: Option[Var[Addr]]): Activity.State[NameTree[Name]] =
-      Activity.Ok(lookup match {
-        case Some(addrs) =>
-          NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual))
-        case None => NameTree.Neg
-      })
-
-    @inline def initCache(endpoints: v1.Endpoints): EndpointsCache = {
-      cache.initialize(endpoints)
-      cache
+    def mkNameTree(lookup: Var[Set[Address]]): Activity.State[NameTree[Name]] = {
+      val addrs = lookup.map { Addr.Bound(_) }
+      Activity.Ok(NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual)))
     }
 
     /**
@@ -201,36 +228,21 @@ abstract class EndpointsNamer(
      *         if it was undefined.
      */
     @inline
-    def getService(f: SvcCache => Var[Option[Var[Addr]]])
-                  (endpoints: EndpointsCache): Activity[NameTree[Name]] =
-      // note: this would look nicer as a for-comprehension, but `for`
-      //       doesn't like `Activity`, since it has `flatMap` but no
-      //       `withFilter`.
-      endpoints.services.flatMap { services =>
-        services.get(serviceName).map { service =>
-          // we found a `SvcCache` for `serviceName` – apply `f` to
-          // it to extract the corresponding `Addr`, and make a
-          // bound `NameTree` if it was defined.
-          val state = f(service).map(mkNameTree)
-          Activity(state)
+    def getService(f: EndpointsCache => Var[Option[Var[Set[Address]]]])
+                  (endpoints: EndpointsCache): Activity[NameTree[Name]] = {
+      // we found a `SvcCache` for `serviceName` – apply `f` to
+      // it to extract the corresponding `Addr`, and make a
+      // bound `NameTree` if it was defined.
+      val state = f(endpoints).map { v =>
+        v.map { lookup =>
+          mkNameTree(lookup)
         }.getOrElse {
           // TODO: log here
-          Activity.value(NameTree.Neg)
+          Activity.Ok(NameTree.Neg)
         }
       }
-
-    // make an `Activity` for the `EndpointsCache` named by `serviceName`
-    // in `nsName`.
-    // TODO: memoize?
-    val endpointsAct: Activity[EndpointsCache] =
-      mkApi(nsName)
-        .endpoints(serviceName)
-        .activity(initCache, labelSelector = labelSelector) { (_, event) =>
-          // TODO: do `cache.update` and `cache.initialize` really need to be
-          //       two separate functions?
-          cache.update(event)
-          cache
-        }
+      Activity(state)
+    }
 
     Try(portName.toInt).toOption match {
       case Some(portNumber) =>
@@ -238,19 +250,16 @@ abstract class EndpointsNamer(
         // we are dealing with a numbered port. we will thus also
         // need the port mappings from the `Service` API response,
         // so join its activity with the endpoints cache activity.
-        endpointsAct.join(getPortMap(nsName, serviceName))
+        endpointsCache(nsName, serviceName)
+          .join(numberedPortRemappings(nsName, serviceName))
           .flatMap { case ((endpoints, ports)) =>
-            getService {
-              _.lookupNumberedPort(ports, portNumber)
-            }(endpoints)
+            getService { service => service.lookupNumberedPort(ports, portNumber) }(endpoints)
           }
       case None =>
         // otherwise, we are dealing with a named port, so we can
         // just look up the service from the endpointsCache
-        endpointsAct.flatMap {
-          getService {
-            _.port(portName)
-          }
+        endpointsCache(nsName, serviceName).flatMap {
+          getService { service => service.port(portName) } _
         }
     }
   }
@@ -271,10 +280,7 @@ object EndpointsNamer {
       Endpoint(InetAddress.getByName(addr.ip), addr.nodeName)
   }
 
-  protected case class Svc(endpoints: Set[Endpoint], ports: PortMap)
-
-  protected[EndpointsNamer] case class SvcCache(name: String, init: Svc) {
-
+  protected[EndpointsNamer] case class EndpointsCache(endpoints: Set[Endpoint], ports: PortMap) {
     /**
      * For a given port number, apply the port mapping of the service.
      * The target port of the port mapping may be a named port and the
@@ -283,7 +289,7 @@ object EndpointsNamer {
      * `Var[Addr]` tracks the actual  endpoints if the port does exist.
      */
     def lookupNumberedPort(mappings: NumberedPortMap, portNumber: Int)
-    : Var[Option[Var[Addr]]] =
+    : Var[Option[Var[Set[Address]]]] =
       mappings.get(portNumber)
         .map { targetPort =>
           // target may be an int (port number) or string (port name)
@@ -295,39 +301,28 @@ object EndpointsNamer {
               // target port is a name and may or may not exist
               port(targetPort)
           }
-        }.getOrElse {
-        Var(None)
+        }.getOrElse { Var(None) }
+
+    private[this] val _endpoints = Var[Set[Endpoint]](endpoints)
+    private[this] val _portMap = Var[Map[String, Int]](ports)
+
+    def port(portName: String): Var[Option[Var[Set[Address]]]] =
+      _portMap.map { portState => portState.get(portName).map(port) }
+
+    def port(portNumber: Int): Var[Set[Address]] =
+      _endpoints.map { endpointsState =>
+        for {
+          Endpoint(ip, nodeName) <- endpointsState
+          isa = new InetSocketAddress(ip, portNumber)
+        } yield Address.Inet(isa, nodeName.map(Metadata.nodeName -> _).toMap)
+          .asInstanceOf[Address]
       }
-
-    private[this] val endpointsState = Var[Set[Endpoint]](init.endpoints)
-    private[this] val portsState = Var[Map[String, Int]](init.ports)
-
-    def port(portName: String): Var[Option[Var[Addr]]] = {
-      portsState.map { portMap =>
-        val portNumber = portMap.get(portName)
-        portNumber.map(port)
-      }
-    }
-
-    def port(portNumber: Int): Var[Addr] =
-      endpointsState.map { endpoints =>
-        val addrs: Set[Address] = endpoints.map { endpoint =>
-          val isa = new InetSocketAddress(endpoint.ip, portNumber)
-          Address.Inet(isa, endpoint.nodeName.map(Metadata.nodeName -> _).toMap)
-        }
-        Addr.Bound(addrs)
-      }
-
-    def ports: Var[Map[String, Int]] = portsState
-
-    def update(subsets: Option[Seq[v1.EndpointSubset]]): Unit = {
-      val (newEndpoints, newPorts) = subsets.toEndpointsAndPorts
+    def update(endpoints: v1.Endpoints): Unit = {
+      val (newEndpoints, newPorts) = endpoints.subsets.toEndpointsAndPorts
 
       synchronized {
-        val oldEndpoints = endpointsState.sample()
-        if (newEndpoints != oldEndpoints) endpointsState() = newEndpoints
-        val oldPorts = portsState.sample()
-        if (newPorts != oldPorts) portsState() = newPorts
+        if (newEndpoints != _endpoints.sample()) _endpoints() = newEndpoints
+        if (newPorts != _portMap.sample()) _portMap() = newPorts
       }
     }
   }
@@ -339,7 +334,7 @@ object EndpointsNamer {
         if maybeProto.map(_.toUpperCase).getOrElse("TCP") == "TCP"
       } yield name -> port) (breakOut)
 
-    def toEndpoints: Set[Endpoint] =
+    def toEndpointSet: Set[Endpoint] =
       for {address: v1.EndpointAddress <- subset.addressesSeq.toSet} yield {
         Endpoint(address)
       }
@@ -351,72 +346,16 @@ object EndpointsNamer {
         subsetsSeq <- subsets.toSeq
         subset <- subsetsSeq
       } yield {
-        (subset.toEndpoints, subset.toPortMap)
+        (subset.toEndpointSet, subset.toPortMap)
       }
       val (endpoints, ports) = result.unzip
       (endpoints.flatten.toSet, if (ports.isEmpty) Map.empty else ports.reduce(_ ++ _))
     }
-
-    @inline def toSvc: Svc = Svc.tupled(toEndpointsAndPorts)
   }
 
-  implicit def endpointsToSvcCache(endpoints: v1.Endpoints): Option[SvcCache] =
-    endpoints.getName.map { name => SvcCache(name, endpoints.subsets.toSvc) }
-
-
-  class EndpointsCache extends Ns.ObjectCache[v1.Endpoints, v1.EndpointsWatch] {
-
-    private[this] val state = Var[Activity.State[Map[String, SvcCache]]](Activity.Pending)
-    val services: Activity[Map[String, SvcCache]] = Activity(state)
-
-    def initialize(endpoints: v1.Endpoints): Unit =
-      add(endpoints)
-
-    override def update(watch: v1.EndpointsWatch): Unit =
-      watch match {
-        case v1.EndpointsError(e) => log.error("k8s watch error: %s", e)
-        case v1.EndpointsAdded(endpoints) => add(endpoints)
-        case v1.EndpointsModified(endpoints) => add(endpoints)
-        case v1.EndpointsDeleted(endpoints) => delete(endpoints)
-      }
-
-    private[this] def add(endpoints: v1.Endpoints): Unit =
-      for {svc <- endpoints} synchronized {
-        log.debug(s"k8s added: $svc")
-        val svcs = state.sample() match {
-          case Activity.Ok(svcs) => svcs
-          case _ => Map.empty[String, SvcCache]
-        }
-        state() = Activity.Ok(svcs + (svc.name -> svc))
-      }
-
-    private[this] def modify(endpoints: v1.Endpoints): Unit =
-      for {name <- endpoints.getName} synchronized {
-        log.debug(s"k8s modified: $name")
-        state.sample() match {
-          case Activity.Ok(snap) =>
-            snap.get(name) match {
-              case None =>
-                log.warning(s"k8s ns received modified watch for unknown service $name")
-              case Some(svc) =>
-                svc() = endpoints.subsets
-            }
-          case _ =>
-        }
-      }
-
-    private[this] def delete(endpoints: v1.Endpoints): Unit =
-      for {name <- endpoints.getName} synchronized {
-        log.debug(s"k8s deleted: $name")
-        state.sample() match {
-          case Activity.Ok(snap) =>
-            for (svc <- snap.get(name)) {
-              state() = Activity.Ok(snap - name)
-            }
-
-          case _ =>
-        }
-      }
+  protected implicit class RichEndpoints(val endpoints: v1.Endpoints) extends AnyVal {
+    @inline def cache: EndpointsCache =
+      EndpointsCache.tupled(endpoints.subsets.toEndpointsAndPorts)
   }
 
 }
