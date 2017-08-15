@@ -188,18 +188,10 @@ abstract class EndpointsNamer(
       mkApi(nsName)
       .endpoints(serviceName)
       .activity(
-        EndpointsCache.fromEndpoints,
+        EndpointsCache.fromEndpoints(serviceName, nsName),
         labelSelector = labelSelector
-      ) { case ((cache, event)) =>
-        event match {
-          case v1.EndpointsAdded(endpoints) => cache.update(endpoints)
-          case v1.EndpointsModified(endpoints) => cache.update(endpoints)
-          case v1.EndpointsDeleted(endpoints) => cache.update(endpoints)
-          case v1.EndpointsError(error) =>
-            log.debug(s"k8s ns $nsName service $serviceName endpoints watch error $error")
-        }
-        cache
-      }
+      ) { case ((cache, event)) => cache.update(event) }
+
     caches.getOrElseUpdate((nsName, serviceName, labelSelector), mkCache())
   }
 
@@ -255,7 +247,12 @@ object EndpointsNamer {
       Endpoint(InetAddress.getByName(addr.ip), addr.nodeName)
   }
 
-  private[EndpointsNamer] class EndpointsCache(var endpoints: Set[Endpoint], var ports: PortMap) extends Stabilize {
+  private[EndpointsNamer] case class EndpointsCache(
+    nsName: String,
+    serviceName: String,
+    endpoints: Set[Endpoint],
+    ports: PortMap
+  ) {
 
     def lookupNumberedPort(
       mappings: NumberedPortMap,
@@ -283,7 +280,6 @@ object EndpointsNamer {
             .asInstanceOf[Address]
         }
 
-
     def port(portNumber: Int): Set[Address] =
       for {
         Endpoint(ip, nodeName) <- endpoints
@@ -291,20 +287,67 @@ object EndpointsNamer {
       } yield Address.Inet(isa, nodeName.map(Metadata.nodeName -> _).toMap)
         .asInstanceOf[Address]
 
-    def update(endpoints: v1.Endpoints): Unit = {
-      val (newEndpoints, newPorts) = endpoints.subsets.toEndpointsAndPorts
+    def update(event: v1.EndpointsWatch): EndpointsCache =
+      // TODO: i wish this logging code was less ugly...
+      event match {
+        case v1.EndpointsAdded(update) =>
+          val (newEndpoints, newPorts) = update.subsets.toEndpointsAndPorts
+          for {endpoint <- newEndpoints if !endpoints.contains(endpoint) }
+            log.debug(s"k8s ns $nsName service $serviceName added endpoint $endpoint")
+          for { (name, port) <- newPorts if !ports.contains(name) }
+            log.debug(s"k8s ns $nsName service $serviceName added port mapping '$name' to port $port")
+          this.copy(endpoints = endpoints ++ newEndpoints, ports = ports ++ newPorts)
+        case v1.EndpointsModified(update) =>
+          val (newEndpoints, newPorts) = update.subsets.toEndpointsAndPorts
+          for { endpoint <- endpoints if !newEndpoints.contains(endpoint) } yield {
+            log.debug(s"k8s ns $nsName service $serviceName deleted endpoint $endpoint")
+            endpoint
+          }
+          for { name <- ports.keySet if !newPorts.contains(name) } yield {
+            log.debug(s"k8s ns $nsName service $serviceName deleted port $name")
+            name
+          }
+          for {endpoint <- newEndpoints }
+            if (!endpoints.contains(endpoint))
+              log.debug(s"k8s ns $nsName service $serviceName added endpoint $endpoint")
+            else
+              log.debug(s"k8s ns $nsName service $serviceName modified endpoint $endpoint")
+          for { (name, port) <- newPorts }
+            if (!ports.contains(name))
+              log.debug(s"k8s ns $nsName service $serviceName added port mapping '$name' to port $port")
+            else
+              log.debug(s"k8s ns $nsName service $serviceName remapped '$name' to port $port")
+          this.copy(endpoints = newEndpoints, ports = newPorts)
 
-      synchronized {
-        this.endpoints = newEndpoints
-        ports = newPorts
+        case v1.EndpointsDeleted(update) =>
+          val (newEndpoints, newPorts) = update.subsets.toEndpointsAndPorts
+          val deletedEndpoints =
+            for { endpoint <- endpoints if !newEndpoints.contains(endpoint) } yield {
+              log.debug(s"k8s ns $nsName service $serviceName deleted endpoint $endpoint")
+              endpoint
+            }
+          val deletedPorts =
+            for { name <- ports.keySet if !newPorts.contains(name) } yield {
+              log.debug(s"k8s ns $nsName service $serviceName deleted port $name")
+              name
+            }
+          this.copy(
+            endpoints = endpoints -- deletedEndpoints,
+            ports = ports -- deletedPorts
+          )
+        case v1.EndpointsError(error) =>
+          log.debug(s"k8s ns $nsName service $serviceName endpoints watch error $error")
+          this
       }
-    }
   }
 
   private[EndpointsNamer] object EndpointsCache {
-    def fromEndpoints(endpoints: v1.Endpoints): EndpointsCache = {
-      val (endpts, ports) = endpoints.subsets.toEndpointsAndPorts
-      new EndpointsCache(endpts, ports)
+    def fromEndpoints(
+      nsName: String,
+      serviceName: String
+    )(endpointsResponse: v1.Endpoints): EndpointsCache = {
+      val (endpoints, ports) = endpointsResponse.subsets.toEndpointsAndPorts
+      new EndpointsCache(nsName, serviceName, endpoints, ports)
     }
   }
 
