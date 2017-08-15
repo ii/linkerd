@@ -139,12 +139,15 @@ abstract class EndpointsNamer(
    *       pair multiple times, you will always get back the same `Activity`,
    *       which is created the first time that pair is looked up.
    */
-  private[k8s] def numberedPortRemappings(nsName: String, serviceName: String)
-    : Activity[NumberedPortMap] = {
+  private[k8s] def numberedPortRemappings(
+    nsName: String,
+    serviceName: String,
+    labelSelector: Option[String]
+  ) : Activity[NumberedPortMap] = {
     def _getPortMap() =
       mkApi(nsName)
         .service(serviceName)
-        .activity(_.portMappings) {
+        .activity(_.portMappings, labelSelector = labelSelector) {
           case ((oldMap, v1.ServiceAdded(service))) =>
             val newMap = service.portMappings
             newMap.foreach {
@@ -176,11 +179,14 @@ abstract class EndpointsNamer(
     portRemappings.getOrElseUpdate((nsName, serviceName), _getPortMap())
   }
 
-  private[k8s] def endpointsCache(nsName: String, serviceName: String)
-    : Activity[EndpointsCache] =
+  private[k8s] def endpointsCache(
+    nsName: String,
+    serviceName: String,
+    labelSelector: Option[String]
+  ): Activity[EndpointsCache] =
     mkApi(nsName)
       .endpoints(serviceName)
-      .activity(_.cache){ case ((cache, event)) =>
+      .activity(_.cache, labelSelector = labelSelector){ case ((cache, event)) =>
         event match {
           case v1.EndpointsAdded(endpoints) => cache.update(endpoints)
           case v1.EndpointsModified(endpoints) => cache.update(endpoints)
@@ -212,31 +218,31 @@ abstract class EndpointsNamer(
     id: Path,
     residual: Path,
     labelSelector: Option[String] = None
-  ): Activity[NameTree[Name]] =
-
+  ): Activity[NameTree[Name]] = {
+    val cache = endpointsCache(nsName, serviceName, labelSelector)
     Try(portName.toInt).toOption match {
       case Some(portNumber) =>
         // if `portName` was successfully parsed as an `int`, then
         // we are dealing with a numbered port. we will thus also
         // need the port mappings from the `Service` API response,
         // so join its activity with the endpoints cache activity.
-        endpointsCache(nsName, serviceName)
-          .join(numberedPortRemappings(nsName, serviceName))
+        cache.join(numberedPortRemappings(nsName, serviceName, labelSelector))
           .flatMap { case ((endpoints, ports)) =>
             val state =
               endpoints.lookupNumberedPort(ports, portNumber)
-                       .map(mkNameTree(id, residual))
+                .map(mkNameTree(id, residual))
             Activity(state)
           }
       case None =>
         // otherwise, we are dealing with a named port, so we can
         // just look up the service from the endpointsCache
-        endpointsCache(nsName, serviceName).flatMap { endpoints =>
+        cache.flatMap { endpoints =>
           val state =
             endpoints.port(portName).map(mkNameTree(id, residual))
           Activity(state)
         }
     }
+  }
 }
 
 object EndpointsNamer {
