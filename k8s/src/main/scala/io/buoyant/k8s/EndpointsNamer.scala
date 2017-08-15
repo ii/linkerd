@@ -192,6 +192,19 @@ abstract class EndpointsNamer(
       }
 
 
+  @inline
+  private[this] def mkNameTree(
+    id: Path,
+    residual: Path
+  )(lookup: Option[Var[Set[Address]]]): Activity.State[NameTree[Name]] =
+    Activity.Ok(
+      lookup.map { addresses =>
+        val addrs = addresses.map { Addr.Bound(_) }
+        NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual))
+      }
+      .getOrElse { NameTree.Neg }
+    )
+
   private[k8s] def lookupServices(
     nsName: String,
     portName: String,
@@ -199,50 +212,7 @@ abstract class EndpointsNamer(
     id: Path,
     residual: Path,
     labelSelector: Option[String] = None
-  ): Activity[NameTree[Name]] = {
-
-    /**
-     * Turn an `Option[Var[Addr]]` (as returned by `SvcCache.lookupNumberedPort`
-     * or `SvcCache.port`) to an `Activity.State` containing a `NameTree`,
-     * using the `id` and `residual` arguments passed to `lookupServices`.
-     * @param lookup either `Some(Var[Addr])` if the lookup was successful,
-     *                   or `None` if no service was found.
-     * @return an `Activity.Ok` containing either a `NameTree.Leaf` with a
-     *         `Name.Bound` to `addrs` if `lookup` is defined, or
-     *         `NameTree.Neg` if `lookup` is empty
-     */
-    @inline
-    def mkNameTree(lookup: Var[Set[Address]]): Activity.State[NameTree[Name]] = {
-      val addrs = lookup.map { Addr.Bound(_) }
-      Activity.Ok(NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual)))
-    }
-
-    /**
-     * Look up the service named `serviceName` from `endpoints`, and apply
-     * function `f` to the result if it is defined.
-     * @param f a function extracting a `Var[Option[Var[Addr]]]` from a
-     *          `SvcCache`
-     * @param endpoints the `EndpointsCache` to look up the service from
-     * @return an `Activity` containing either the state of the service
-     *         named by `serviceName` if one was found, or `NameTree.Neg`
-     *         if it was undefined.
-     */
-    @inline
-    def getService(f: EndpointsCache => Var[Option[Var[Set[Address]]]])
-                  (endpoints: EndpointsCache): Activity[NameTree[Name]] = {
-      // we found a `SvcCache` for `serviceName` – apply `f` to
-      // it to extract the corresponding `Addr`, and make a
-      // bound `NameTree` if it was defined.
-      val state = f(endpoints).map { v =>
-        v.map { lookup =>
-          mkNameTree(lookup)
-        }.getOrElse {
-          // TODO: log here
-          Activity.Ok(NameTree.Neg)
-        }
-      }
-      Activity(state)
-    }
+  ): Activity[NameTree[Name]] =
 
     Try(portName.toInt).toOption match {
       case Some(portNumber) =>
@@ -253,16 +223,20 @@ abstract class EndpointsNamer(
         endpointsCache(nsName, serviceName)
           .join(numberedPortRemappings(nsName, serviceName))
           .flatMap { case ((endpoints, ports)) =>
-            getService { service => service.lookupNumberedPort(ports, portNumber) }(endpoints)
+            val state =
+              endpoints.lookupNumberedPort(ports, portNumber)
+                       .map(mkNameTree(id, residual))
+            Activity(state)
           }
       case None =>
         // otherwise, we are dealing with a named port, so we can
         // just look up the service from the endpointsCache
-        endpointsCache(nsName, serviceName).flatMap {
-          getService { service => service.port(portName) } _
+        endpointsCache(nsName, serviceName).flatMap { endpoints =>
+          val state =
+            endpoints.port(portName).map(mkNameTree(id, residual))
+          Activity(state)
         }
     }
-  }
 }
 
 object EndpointsNamer {
