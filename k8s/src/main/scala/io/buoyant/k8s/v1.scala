@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.{JsonProperty, JsonSubTypes, JsonTypeInf
 import com.fasterxml.jackson.core.`type`.TypeReference
 import com.twitter.finagle.{http, Service => FService}
 import io.buoyant.k8s.{KubeObject => BaseObject}
+import scala.collection.breakOut
 
 package object v1 {
 
@@ -196,7 +197,23 @@ package object v1 {
     kind: Option[String] = None,
     metadata: Option[ObjectMeta] = None,
     apiVersion: Option[String] = None
-  ) extends Object
+  ) extends Object {
+    /**
+     * @return a `Map[Int, String]` containing all the port to target port
+     *         mappings in this `Service` object.
+     */
+    @JsonIgnore
+    def portMappings: Map[Int, String] =
+      (for {
+        meta <- metadata.toSeq
+        status <- status.toSeq
+        spec <- spec.toSeq
+        v1.ServicePort(port, targetPort, _) <- spec.ports
+      } yield {
+        port -> targetPort.getOrElse(port.toString)
+      })(breakOut)
+
+  }
 
   case class ServiceStatus(
     loadBalancer: Option[LoadBalancerStatus] = None

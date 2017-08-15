@@ -36,15 +36,13 @@ class MultiNsNamer(
       case (id@Path.Utf8(nsName, portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        val portCache = PortMappingCache.fromService(mkApi(nsName).service(serviceName))
-        lookupServices(nsName, portName, serviceName, portCache, id, residual)
+        lookupServices(nsName, portName, serviceName, id, residual)
 
       case (id@Path.Utf8(nsName, portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        val portCache = PortMappingCache.fromService(mkApi(nsName).service(serviceName))
-        lookupServices(nsName, portName, serviceName, portCache, id, residual, labelSelector)
+        lookupServices(nsName, portName, serviceName, id, residual, labelSelector)
 
       case (id@Path.Utf8(nsName, portName, serviceName), Some(label)) =>
         log.debug("k8s lookup: ns %s service %s label value segment missing for label %s",
@@ -89,15 +87,13 @@ class SingleNsNamer(
       case (id@Path.Utf8(portName, serviceName), None) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s", id.show, path.show)
-        val portCache = PortMappingCache.fromService(mkApi(nsName).service(serviceName))
-        lookupServices(nsName, portName, serviceName, portCache, id, residual)
+        lookupServices(nsName, portName, serviceName, id, residual)
 
       case (id@Path.Utf8(portName, serviceName, labelValue), Some(label)) =>
         val residual = path.drop(variablePrefixLength)
         log.debug("k8s lookup: %s %s %s", id.show, label, path.show)
         val labelSelector = Some(s"$label=$labelValue")
-        val portCache = PortMappingCache.fromService(mkApi(nsName).service(serviceName))
-        lookupServices(nsName, portName, serviceName, portCache, id, residual, labelSelector)
+        lookupServices(nsName, portName, serviceName, id, residual, labelSelector)
 
       case (id@Path.Utf8(portName, serviceName), Some(label)) =>
         log.debug("k8s lookup: ns %s service %s label value segment missing for label %s", nsName, serviceName, portName, label)
@@ -125,11 +121,47 @@ abstract class EndpointsNamer(
   val cache = new EndpointsCache
   protected[this] val variablePrefixLength: Int
 
+  // TODO: consider memoizing these activities per (ns/service)
+  private[k8s] def getPortMap(nsName: String, serviceName: String)
+    : Activity[NumberedPortMap] = {
+    mkApi(nsName)
+      .service(serviceName)
+        .activity(_.portMappings) {
+          case ((oldMap, v1.ServiceAdded(service))) =>
+            val newMap = service.portMappings
+            newMap.foreach {
+              case ((port, name)) if oldMap.contains(port) =>
+                log.debug(s"k8s ns $nsName service $serviceName remapped port $port -> $name")
+              case ((port, name)) =>
+                log.debug(s"k8s ns $nsName service $serviceName added port mapping $port -> $name")
+              }
+            oldMap ++ newMap
+          case ((oldMap, v1.ServiceModified(service))) =>
+            val newMap = service.portMappings
+            newMap.foreach {
+              case ((port, name)) if oldMap.contains(port) =>
+                log.debug(s"k8s ns $nsName service $serviceName remapped port $port -> $name")
+              case ((port, name)) =>
+                log.debug(s"k8s ns $nsName service $serviceName added port mapping $port -> $name")
+            }
+            oldMap ++ newMap
+          case ((oldMap, v1.ServiceDeleted(service))) =>
+            val newMap = service.portMappings
+              // log deleted ports
+            for { deletedPort <- oldMap.keySet &~ newMap.keySet }
+              log.debug(s"k8s ns $nsName service $serviceName deleted port mapping for $deletedPort")
+            newMap
+          case ((oldMap, v1.ServiceError(error))) =>
+            log.error(s"k8s ns $nsName service $serviceName watch error $error")
+            oldMap
+
+    }
+  }
+
   private[k8s] def lookupServices(
     nsName: String,
     portName: String,
     serviceName: String,
-    portCacheAct: Activity[PortMappingCache],
     id: Path,
     residual: Path,
     labelSelector: Option[String] = None
@@ -204,12 +236,9 @@ abstract class EndpointsNamer(
       case Some(portNumber) =>
         // if `portName` was successfully parsed as an `int`, then
         // we are dealing with a numbered port. we will thus also
-        // need the port mappings cache, so join its activity with
-        // the endpoints cache activity.
-
-        // TODO: can we take the port mapping cache by value so we
-        //       don't have to create it if it isn't needed?
-        endpointsAct.join(portCacheAct)
+        // need the port mappings from the `Service` API response,
+        // so join its activity with the endpoints cache activity.
+        endpointsAct.join(getPortMap(nsName, serviceName))
           .flatMap { case ((endpoints, ports)) =>
             getService {
               _.lookupNumberedPort(ports, portNumber)
@@ -233,6 +262,7 @@ object EndpointsNamer {
 
 
   protected type PortMap = Map[String, Int]
+  protected type NumberedPortMap = Map[Int, String]
 
   protected case class Endpoint(ip: InetAddress, nodeName: Option[String])
 
@@ -252,9 +282,9 @@ object EndpointsNamer {
      * return type tracks whether the port exists, and the inner
      * `Var[Addr]` tracks the actual  endpoints if the port does exist.
      */
-    def lookupNumberedPort(mappings: PortMappingCache, portNumber: Int)
+    def lookupNumberedPort(mappings: NumberedPortMap, portNumber: Int)
     : Var[Option[Var[Addr]]] =
-      mappings(portNumber)
+      mappings.get(portNumber)
         .map { targetPort =>
           // target may be an int (port number) or string (port name)
           Try(targetPort.toInt).toOption match {

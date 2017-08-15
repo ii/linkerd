@@ -669,13 +669,12 @@ class EndpointsNamerTest extends FunSuite with Awaits {
 
         rsp.setChunked(true)
 
-        writer = rsp.writer
-        doScaleUp before writer.write(Rsps.ScaleUp) before {
-          doScaleDown before writer.write(Rsps.ScaleDown)
+        doScaleUp before rsp.writer.write(Rsps.ScaleUp) before {
+          doScaleDown before rsp.writer.write(Rsps.ScaleDown)
         }
 
         doFail onSuccess { _ =>
-          writer.fail(new ChannelClosedException)
+          rsp.writer.fail(new ChannelClosedException with NoStackTrace)
         }
 
         Future.value(rsp)
@@ -683,7 +682,7 @@ class EndpointsNamerTest extends FunSuite with Awaits {
       case req if req.uri.startsWith(WatchPath) && !req.uri.contains("sessions") =>
         val rsp = Response()
         Future.value(rsp)
-      case req if req.uri == s"${WatchPath}{$SessionsPath}resourceVersion=5319582" =>
+      case req if req.uri == "/api/v1/watch/namespaces/srv/endpoints/sessions?resourceVersion=5319582" =>
         val rsp = Response()
 
         doScaleDown before rsp.writer.write(Rsps.ScaleDown)
@@ -847,13 +846,9 @@ class EndpointsNamerTest extends FunSuite with Awaits {
     val _ = new Fixtures {
       assert(state == Activity.Pending)
       doInit.setDone()
-
-      await(activity.toFuture)
       assertHas(3)
 
       doScaleUp.setDone()
-
-      await(activity.toFuture)
       assertHas(4)
 
       doInit = new Promise[Unit]
@@ -861,8 +856,6 @@ class EndpointsNamerTest extends FunSuite with Awaits {
       doFail.setDone()
 
       doScaleDown.setDone()
-
-      await(activity.toFuture)
       assertHas(3)
     }
   }
