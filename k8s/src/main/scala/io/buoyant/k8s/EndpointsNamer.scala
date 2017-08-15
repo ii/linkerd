@@ -7,7 +7,6 @@ import com.twitter.finagle.service.Backoff
 import com.twitter.finagle.util.DefaultTimer
 import com.twitter.util._
 import io.buoyant.namer.Metadata
-import EndpointsNamer._
 import scala.collection.{mutable, breakOut}
 import scala.language.implicitConversions
 
@@ -49,7 +48,6 @@ class MultiNsNamer(
         log.debug("k8s lookup: ns %s service %s label value segment missing for label %s",
                   nsName, serviceName, portName, label)
         Activity.value(NameTree.Neg)
-
       case _ =>
         Activity.value(NameTree.Neg)
     }
@@ -71,7 +69,6 @@ class SingleNsNamer(
 
   protected[this] override val variablePrefixLength: Int =
     SingleNsNamer.PrefixLen + labelName.size
-
 
   /**
    * Accepts names in the form:
@@ -124,7 +121,10 @@ abstract class EndpointsNamer(
   // memoize port remapping watch activities so that we don't have to
   // create multiple watches on the same `Services` API object.
   private[this] val portRemappings =
-    mutable.HashMap[(String, String), Activity[NumberedPortMap]]()
+    mutable.HashMap[(String, String, Option[String]), Activity[NumberedPortMap]]()
+
+  private[this] val caches =
+    mutable.HashMap[(String, String, Option[String]), Activity[EndpointsCache]]()
 
   /**
    * Watch the numbered-port remappings for the service named `serviceName`
@@ -143,7 +143,7 @@ abstract class EndpointsNamer(
     nsName: String,
     serviceName: String,
     labelSelector: Option[String]
-  ) : Activity[NumberedPortMap] = {
+  ) : Activity[NumberedPortMap] = synchronized {
     def _getPortMap() =
       mkApi(nsName)
         .service(serviceName)
@@ -176,15 +176,16 @@ abstract class EndpointsNamer(
             log.error(s"k8s ns $nsName service $serviceName watch error $error")
             oldMap
         }
-    portRemappings.getOrElseUpdate((nsName, serviceName), _getPortMap())
+    portRemappings.getOrElseUpdate((nsName, serviceName, labelSelector), _getPortMap())
   }
 
   private[k8s] def endpointsCache(
     nsName: String,
     serviceName: String,
     labelSelector: Option[String]
-  ): Activity[EndpointsCache] =
-    mkApi(nsName)
+  ): Activity[EndpointsCache] = synchronized {
+    def mkCache() =
+      mkApi(nsName)
       .endpoints(serviceName)
       .activity(_.cache, labelSelector = labelSelector){ case ((cache, event)) =>
         event match {
@@ -196,7 +197,8 @@ abstract class EndpointsNamer(
         }
         cache
       }
-
+    caches.getOrElseUpdate((nsName, serviceName, labelSelector), mkCache())
+  }
 
   @inline
   private[this] def mkNameTree(
@@ -252,16 +254,12 @@ object EndpointsNamer {
       Endpoint(InetAddress.getByName(addr.ip), addr.nodeName)
   }
 
-  protected[EndpointsNamer] class EndpointsCache(var endpoints: Set[Endpoint], var ports: PortMap) extends Stabilize {
-    /**
-     * For a given port number, apply the port mapping of the service.
-     * The target port of the port mapping may be a named port and the
-     * named port may or may not exist. The outer `Var[Option]` of the
-     * return type tracks whether the port exists, and the inner
-     * `Var[Addr]` tracks the actual  endpoints if the port does exist.
-     */
-    def lookupNumberedPort(mappings: NumberedPortMap, portNumber: Int)
-    : Option[Set[Address]] =
+  private[EndpointsNamer] class EndpointsCache(var endpoints: Set[Endpoint], var ports: PortMap) extends Stabilize {
+
+    def lookupNumberedPort(
+      mappings: NumberedPortMap,
+      portNumber: Int
+    ): Option[Set[Address]] =
       mappings.get(portNumber)
         .flatMap { targetPort =>
           // target may be an int (port number) or string (port name)
