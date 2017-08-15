@@ -187,7 +187,10 @@ abstract class EndpointsNamer(
     def mkCache() =
       mkApi(nsName)
       .endpoints(serviceName)
-      .activity(_.cache, labelSelector = labelSelector){ case ((cache, event)) =>
+      .activity(
+        EndpointsCache.fromEndpoints,
+        labelSelector = labelSelector
+      ) { case ((cache, event)) =>
         event match {
           case v1.EndpointsAdded(endpoints) => cache.update(endpoints)
           case v1.EndpointsModified(endpoints) => cache.update(endpoints)
@@ -200,16 +203,15 @@ abstract class EndpointsNamer(
     caches.getOrElseUpdate((nsName, serviceName, labelSelector), mkCache())
   }
 
-  @inline
-  private[this] def mkNameTree(
+  @inline private[this] def mkNameTree(
     id: Path,
     residual: Path
-  )(lookup: Option[Var[Set[Address]]]): NameTree[Name] =
-      lookup.map { addresses =>
-        val addrs = addresses.map { Addr.Bound(_) }
-        NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual))
-      }
-      .getOrElse { NameTree.Neg }
+  )(lookup: Option[Var[Set[Address]]]): NameTree[Name] = lookup match {
+    case Some(addresses) =>
+      val addrs = addresses.map { Addr.Bound(_) }
+      NameTree.Leaf(Name.Bound(addrs, idPrefix ++ id, residual))
+    case None => NameTree.Neg
+  }
 
   private[k8s] def lookupServices(
     nsName: String,
@@ -242,7 +244,6 @@ abstract class EndpointsNamer(
 object EndpointsNamer {
   val DefaultBackoff: Stream[Duration] =
     Backoff.exponentialJittered(10.milliseconds, 10.seconds)
-
 
   protected type PortMap = Map[String, Int]
   protected type NumberedPortMap = Map[Int, String]
@@ -300,6 +301,13 @@ object EndpointsNamer {
     }
   }
 
+  private[EndpointsNamer] object EndpointsCache {
+    def fromEndpoints(endpoints: v1.Endpoints): EndpointsCache = {
+      val (endpts, ports) = endpoints.subsets.toEndpointsAndPorts
+      new EndpointsCache(endpts, ports)
+    }
+  }
+
   protected implicit class RichSubset(val subset: v1.EndpointSubset) extends AnyVal {
     def toPortMap: PortMap =
       (for {
@@ -324,14 +332,6 @@ object EndpointsNamer {
       val (endpoints, ports) = result.unzip
       (endpoints.flatten.toSet, if (ports.isEmpty) Map.empty else ports.reduce(_ ++ _))
     }
-  }
-
-  protected implicit class RichEndpoints(val endpoints: v1.Endpoints) extends AnyVal {
-    @inline def cache: EndpointsCache = {
-      val (endpts, ports) = endpoints.subsets.toEndpointsAndPorts
-      new EndpointsCache(endpts, ports)
-    }
-
   }
 
 }
