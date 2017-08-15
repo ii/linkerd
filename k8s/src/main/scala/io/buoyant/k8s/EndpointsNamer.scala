@@ -351,26 +351,25 @@ object EndpointsNamer {
     }
   }
 
-  protected implicit class RichSubset(val subset: v1.EndpointSubset) extends AnyVal {
-    def toPortMap: PortMap =
+  protected implicit class RichSubsetsSeq(val subsets: Option[Seq[v1.EndpointSubset]]) extends AnyVal {
+
+    private[this] def toPortMap(subset: v1.EndpointSubset): PortMap =
       (for {
         v1.EndpointPort(port, Some(name), maybeProto) <- subset.portsSeq
         if maybeProto.map(_.toUpperCase).getOrElse("TCP") == "TCP"
-      } yield name -> port) (breakOut)
+      } yield name -> port)(breakOut)
 
-    def toEndpointSet: Set[Endpoint] =
+    private[this] def toEndpointSet(subset: v1.EndpointSubset): Set[Endpoint] =
       for {address: v1.EndpointAddress <- subset.addressesSeq.toSet} yield {
         Endpoint(address)
       }
-  }
 
-  protected implicit class RichSubsetsSeq(val subsets: Option[Seq[v1.EndpointSubset]]) extends AnyVal {
     def toEndpointsAndPorts: (Set[Endpoint], PortMap) = {
       val result = for {
         subsetsSeq <- subsets.toSeq
         subset <- subsetsSeq
       } yield {
-        (subset.toEndpointSet, subset.toPortMap)
+        (toEndpointSet(subset), toPortMap(subset))
       }
       val (endpoints, ports) = result.unzip
       (endpoints.flatten.toSet, if (ports.isEmpty) Map.empty else ports.reduce(_ ++ _))
