@@ -238,7 +238,7 @@ abstract class EndpointsNamer(
         // just look up the service from the endpointsCache
         cache.flatMap { endpoints =>
           val state =
-            endpoints.port(portName).map(mkNameTree(id, residual))
+            endpoints.lookupNamedPort(portName).map(mkNameTree(id, residual))
           Activity(state)
         }
     }
@@ -260,7 +260,7 @@ object EndpointsNamer {
       Endpoint(InetAddress.getByName(addr.ip), addr.nodeName)
   }
 
-  protected[EndpointsNamer] case class EndpointsCache(endpoints: Set[Endpoint], ports: PortMap) {
+  protected[EndpointsNamer] case class EndpointsCache(endpoints: Set[Endpoint], ports: PortMap) extends Stabilize {
     /**
      * For a given port number, apply the port mapping of the service.
      * The target port of the port mapping may be a named port and the
@@ -269,25 +269,37 @@ object EndpointsNamer {
      * `Var[Addr]` tracks the actual  endpoints if the port does exist.
      */
     def lookupNumberedPort(mappings: NumberedPortMap, portNumber: Int)
-    : Var[Option[Var[Set[Address]]]] =
-      mappings.get(portNumber)
+    : Var[Option[Var[Set[Address]]]] = {
+      val unstable = mappings.get(portNumber)
         .map { targetPort =>
           // target may be an int (port number) or string (port name)
           Try(targetPort.toInt).toOption match {
             case Some(targetPortNumber) =>
               // target port is a number and therefore exists
-              Var(Some(port(targetPortNumber)))
+              port(targetPortNumber).map(Some(_))
             case None =>
               // target port is a name and may or may not exist
               port(targetPort)
           }
         }.getOrElse { Var(None) }
+      stabilize(unstable)
+    }
+    def lookupNamedPort(portName: String): Var[Option[Var[Set[Address]]]] =
+      stabilize(port(portName))
 
     private[this] val _endpoints = Var[Set[Endpoint]](endpoints)
     private[this] val _portMap = Var[Map[String, Int]](ports)
 
-    def port(portName: String): Var[Option[Var[Set[Address]]]] =
-      _portMap.map { portState => portState.get(portName).map(port) }
+    def port(portName: String): Var[Option[Set[Address]]] =
+      _portMap.join(_endpoints).map { case ((portState, endpointsState)) =>
+        portState.get(portName).map { portNumber =>
+          for {
+            Endpoint(ip, nodeName) <- endpointsState
+            isa = new InetSocketAddress(ip, portNumber)
+          } yield Address.Inet(isa, nodeName.map(Metadata.nodeName -> _).toMap)
+            .asInstanceOf[Address]
+        }
+      }
 
     def port(portNumber: Int): Var[Set[Address]] =
       _endpoints.map { endpointsState =>
