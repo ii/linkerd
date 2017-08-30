@@ -2,7 +2,7 @@ package com.twitter.finagle.buoyant.h2
 
 import com.twitter.concurrent.AsyncQueue
 import com.twitter.io.Buf
-import com.twitter.util.{Future, Promise, Return, Throw, Try}
+import com.twitter.util._
 
 /**
  * A Stream represents a stream of Data frames, optionally
@@ -98,29 +98,31 @@ object Stream {
     }
 
     override def read(): Future[Frame] = {
-      val f = frameQ.poll()
+      val f = new Promise[Frame]
+      f.become(frameQ.poll())
       f.respond(endOnReleaseIfEnd)
       failOnInterrupt(f, frameQ)
     }
   }
 
-  private[this] def failOnInterrupt[T, Q](f: Future[T], q: AsyncQueue[Q]): Future[T] = {
-    val p = new Promise[T]
-    p.setInterruptHandler {
+  private[this] def failOnInterrupt[T, Q](f: Promise[T], q: AsyncQueue[Q]): Future[T] = {
+    f.setInterruptHandler {
       case e =>
         q.fail(e, discard = true)
         f.raise(e)
     }
-    f.proxyTo(p)
-    p
+    f
   }
 
   private class AsyncQueueReaderWriter extends AsyncQueueReader with Writer {
     override protected[this] val frameQ = new AsyncQueue[Frame]
 
     override def write(f: Frame): Future[Unit] =
-      if (frameQ.offer(f)) failOnInterrupt(f.onRelease, frameQ)
-      else Future.exception(Reset.Closed)
+      if (frameQ.offer(f)) {
+        val p = new Promise[Unit]
+        p.become(f.onRelease)
+        failOnInterrupt(p, frameQ)
+      } else Future.exception(Reset.Closed)
 
     override def reset(err: Reset): Unit = frameQ.fail(err, discard = true)
     override def close(): Unit = frameQ.fail(Reset.NoError, discard = false)
@@ -150,7 +152,11 @@ object Stream {
     new Stream with Writer {
       override def isEmpty = true
       override def onEnd = Future.Unit
-      override def read(): Future[Frame] = failOnInterrupt(frameQ.poll(), frameQ)
+      override def read(): Future[Frame] = {
+        val p = new Promise[Frame]
+        p.become(frameQ.poll())
+        failOnInterrupt(p, frameQ)
+      }
       override def write(f: Frame): Future[Unit] = {
         frameQ.fail(Reset.Closed, discard = true)
         Future.exception(Reset.Closed)
