@@ -1,10 +1,9 @@
 package io.buoyant.k8s.istio
 
-import com.twitter.finagle.buoyant.h2
 import com.twitter.finagle.Service
+import com.twitter.finagle.buoyant.h2
 import com.twitter.util.{Duration, Future}
 import io.buoyant.test.{Awaits, Exceptions}
-import istio.mixer.v1.ReportResponse
 import org.scalatest.FunSuite
 
 class MixerClientTest extends FunSuite with Awaits with Exceptions {
