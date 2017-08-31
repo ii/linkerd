@@ -1,13 +1,13 @@
 package com.twitter.finagle.buoyant.h2
 
-import com.twitter.conversions.storage._
+import java.util.concurrent.atomic.AtomicBoolean
 import com.twitter.concurrent.AsyncQueue
+import com.twitter.conversions.storage._
 import com.twitter.finagle.buoyant.h2.BufferedStream.{RefCountedDataFrame, RefCountedFrame, RefCountedTrailersFrame, State}
 import com.twitter.finagle.buoyant.h2.Stream.AsyncQueueReader
 import com.twitter.finagle.util.AsyncLatch
 import com.twitter.io.Buf
 import com.twitter.util._
-import java.util.concurrent.atomic.AtomicBoolean
 import scala.collection.mutable
 import scala.util.control.NoStackTrace
 
@@ -26,7 +26,10 @@ import scala.util.control.NoStackTrace
  * buffer itself releases the Frame.  Threrefore you should always call discardBuffer on a
  * BufferedStream before it leaves scope.
  */
-class BufferedStream(underlying: Stream, bufferCapacity: Long = 8.kilobytes.bytes) { bufferedStream =>
+class BufferedStream(
+  underlying: Stream,
+  bufferCapacity: Long = 8.kilobytes.bytes
+) { bufferedStream =>
 
   // Mutable state.  All mutations of state must be explicitly synchronized
   private[this] val buffer = mutable.MutableList[RefCountedFrame]()
@@ -34,6 +37,8 @@ class BufferedStream(underlying: Stream, bufferCapacity: Long = 8.kilobytes.byte
   private[this] val forks = mutable.MutableList[AsyncQueue[Frame]]()
   private[this] var state: State = State.Buffering
   private[this] val _onEnd = new Promise[Unit]
+
+  private[this] var currentRead: Future[Frame] = underlying.read()
 
   def bufferSize: Long = _bufferSize
 
@@ -105,7 +110,7 @@ class BufferedStream(underlying: Stream, bufferCapacity: Long = 8.kilobytes.byte
     if (underlying.isEmpty) {
       Future.Unit
     } else {
-      underlying.read().transform {
+      currentRead.transform {
         case Return(f: Frame.Data) => synchronized {
           val refCounted = new RefCountedDataFrame(f)
           handleFrame(refCounted, f.buf.length)
@@ -139,6 +144,10 @@ class BufferedStream(underlying: Stream, bufferCapacity: Long = 8.kilobytes.byte
       frame.open()
       fork.offer(frame.asInstanceOf[Frame])
     }
+
+    // read the next frame once all forks have read the current frame
+    currentRead = underlying.read()
+
     if (state == State.Buffering) {
       // Attempt to add the Frame to the buffer
       if (_bufferSize + size <= bufferCapacity) {
