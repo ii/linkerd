@@ -172,7 +172,7 @@ class Base extends Build {
       s"$version-$configuration"
     }).value,
     imageNames in docker := Seq(ImageName(
-      namespace = Some("buoyantio"),
+      namespace = Some("testrepolocation"),
       repository = name.value,
       tag = Some(dockerTag.value)
     ))
