@@ -27,7 +27,6 @@ compile:
     - cp -a node-v6.10.2-linux-x64/* /usr/
     - sh -x ci/update.sh
     - set -x
-    - sleep 10000
     - pushd $(pwd)/admin/src/main/resources/io/buoyant/admin/ ; npm install ; popd
 
   artifacts:
