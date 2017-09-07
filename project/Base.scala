@@ -172,7 +172,7 @@ class Base extends Build {
       s"$version-$configuration"
     }).value,
     imageNames in docker := Seq(ImageName(
-      namespace = Some("registry.cncf.ci/linkerd/linkerd"),
+      namespace = Some("registry.cncf.ci/linkerd"),
       repository = name.value,
       tag = Some(dockerTag.value)
     ))
