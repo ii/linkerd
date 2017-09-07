@@ -35,10 +35,11 @@ compile:
     - echo "Run npm tests"
     - pushd $(pwd)/admin/src/main/resources/io/buoyant/admin/ ;  npm run eslint ; npm test ; popd
     - echo "Run unit and e2e tests"
-    - sh -x ci/test.sh
+    - sh -x ci/test.sh 
     - echo "Publish"
     - IMAGE_TAG=${CI_COMMIT_REF_NAME}.${CI_COMMIT_SHA_SHORT}.${CI_JOB_ID}
-    - ci/docker-publish.sh ${IMAGE_TAG}
+    - ci/docker-publish.sh ${IMAGE_TAG} || true
+    - sleep 1000000
     - docker images
     
 
