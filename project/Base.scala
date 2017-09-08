@@ -20,6 +20,7 @@ object Base {
   val dockerEnvPrefix = settingKey[String]("prefix to be applied to environment variables")
   val dockerJavaImage = settingKey[String]("base docker image, providing java")
   val dockerTag = settingKey[String]("docker image tag")
+  val dockerRegistry = settingKey[String]("docker registry url")
   val assemblyExecScript = settingKey[Seq[String]]("script used to execute the application")
 
   val configFile = settingKey[File]("path to config file")
