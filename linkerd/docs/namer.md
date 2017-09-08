@@ -597,7 +597,7 @@ dtab: |
   /svc/myservice =>
     /dnssrv/myservice.srv.example.org &
     /dnssrv/myservice2.srv.example.org;
-  /svc/other => 
+  /svc/other =>
     /dnssrv/other.srv.example.org;
 
 ```
@@ -610,18 +610,18 @@ prefix | `io.l5d.dnssrv` | Resolves names with `/#/<prefix>`.
 experimental | `false` | Since the DNS-SRV namer is still considered experimental, this must be set to `true`.
 refreshIntervalSeconds | `5` | linkerd will perform a SRV lookup for each host every `refreshIntervalSeconds`.
 dnsHosts | `<empty list>` | If specified, linkerd will use these DNS servers to perform SRV lookups. If not specified, linkerd will use the default system resolver.
- 
+
 ### DNS-SRV Path Parameters
 
 > Dtab Path Format
 
-```
+```yaml
 /#/<prefix>/<address>
 ```
 
 Key     | Required | Description
 prefix  | yes      | Tells linkerd to resolve the request path using the DNS-SRV namer.
-address |          | The DNS address of a SRV record. Linkerd resolves the record to one or more `address:port` tuples using a SRV lookup 
+address |          | The DNS address of a SRV record. Linkerd resolves the record to one or more `address:port` tuples using a SRV lookup
 
 ## ZooKeeper Leader
 
