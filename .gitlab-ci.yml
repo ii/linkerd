@@ -40,8 +40,6 @@ compile:
     - IMAGE_TAG=${CI_COMMIT_REF_NAME}.${CI_COMMIT_SHA_SHORT}.${CI_JOB_ID}
     - docker login -u "gitlab-ci-token" -p "$CI_JOB_TOKEN" $CI_REGISTRY
     - ci/docker-publish.sh ${IMAGE_TAG} || true
-    - sleep 1000000
-    - docker images
     
 
   artifacts:
