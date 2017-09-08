@@ -6,7 +6,8 @@ set -eu
 
 tag=""
 if [ -n "${1:-}" ]; then
-  tag="$1"
+    tag="$1"
+    registry="registry.cncf.ci/linkerd/linkerd"
 fi
 
 # if DOCKER_CREDENTIALS is set, save it locally.
@@ -22,7 +23,7 @@ if [ "${NO_PUSH:-}" = "1" ]; then
 fi
 
 if [ -n "$tag" ]; then
-  ./sbt "set Base.dockerTag in (linkerd, Bundle) := \"${tag}\"" "linkerd/bundle:${docker_target}" \
+    ./sbt "set Base.dockerTag in (linkerd, Bundle) := \"${tag}\"" "set Base.dockerRegistry in (linkerd, Bundle) := \"${registry}\"" "linkerd/bundle:${docker_target}" \
         "set Base.dockerTag in (namerd, Bundle) := \"${tag}\"" "namerd/bundle:${docker_target}" \
         "set Base.dockerTag in (namerd, Dcos) := \"dcos-${tag}\"" "namerd/dcos:${docker_target}"
 else
