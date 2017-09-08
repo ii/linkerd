@@ -172,8 +172,7 @@ class Base extends Build {
     dockerTag += (dockerTag in Global).or( initialize[String] { _ =>
       s"$version-$configuration"
     }).value,
-    dockerRegistry += (dockerRegistry in Global).or( initialize[String] { _ =>
-      s"$version-$configuration"
+    dockerRegistry += (dockerRegistry in Global)
     }).value,
     imageNames in docker := Seq(ImageName(
       namespace = Some(dockerRegistry.value),
