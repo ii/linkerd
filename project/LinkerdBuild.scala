@@ -322,7 +322,6 @@ object LinkerdBuild extends Base {
       unmanagedBase := baseDirectory.value / "plugins",
       assemblyJarName in assembly := s"${name.value}-${version.value}-exec",
       dockerTag := version.value
-      dockerRegistry := url.value
     )
 
     val BundleProjects = Seq[ProjectReference](
