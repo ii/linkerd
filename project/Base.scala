@@ -172,7 +172,7 @@ class Base extends Build {
     dockerTag += (dockerTag in Global).or( initialize[String] { _ =>
       s"$version-$configuration"
     }).value,
-    dockerRegistry := (dockerRegistry in Global).?(_.getOrElse("registry.cncf.ci/linkerd/linkerd")).value,
+    dockerRegistry := (dockerRegistry in Global).value,
     imageNames in docker := Seq(ImageName(
       namespace = Some(dockerRegistry.value),
       repository = name.value,
