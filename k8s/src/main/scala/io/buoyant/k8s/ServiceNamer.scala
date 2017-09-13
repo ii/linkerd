@@ -60,7 +60,6 @@ class ServiceNamer(
         address <- ports.get(portName)
       } yield address
 
-
     /**
      * Update this `Svc` with a [[v1.ServiceWatch]] watch event
      * @param logEvent an event logger with which to log changes to this

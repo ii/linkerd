@@ -8,10 +8,10 @@ import io.buoyant.router.context.DstBoundCtx
  *
  * In an Istio setup, both requests and responses are augmented with [[IstioAttribute]]s that can
  * be used in various ways. While some attributes are specific to either requests or responses, others
- * are common in both types of objects.
+ * are common to both types of objects.
  *
  */
-trait IstioDataFlow {
+trait IstioAttributesHolder {
   val unknown = "unknown"
 
   // expected istioPath
@@ -20,6 +20,7 @@ trait IstioDataFlow {
   private val pathServiceIndex = 7
   private val pathLabelsIndex = 8
 
+  //TODO: unknown will break mixer
   val targetService: TargetServiceIstioAttribute = TargetServiceIstioAttribute(findTargetService.getOrElse(unknown))
 
   val sourceLabel: SourceLabelIstioAttribute = SourceLabelIstioAttribute(Map(
@@ -27,10 +28,10 @@ trait IstioDataFlow {
     "version" -> unknown
   ))
 
-  val targetLabel: TargetLabelsIstioAttribute = TargetLabelsIstioAttribute((Map(
+  val targetLabel: TargetLabelsIstioAttribute = TargetLabelsIstioAttribute(Map(
     "app" -> findTargetLabelApp.getOrElse(unknown),
     "version" -> findTargetVersion.getOrElse(unknown)
-  )))
+  ))
 
   /*
     * Returns the Istio path that returned this response, if any.

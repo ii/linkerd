@@ -17,7 +17,7 @@ case object TimestampAttribute extends MixerAttributeType("timestamp")
 case object DurationAttribute extends MixerAttributeType("duration")
 
 /**
- * From the [https://istio.io/docs/concepts/policy-and-control/attributes.html: Istio documentation]
+ * From the [https://istio.io/docs/concepts/policy-and-control/attributes.html Istio documentation]
  *
  * > Istio uses attributes to control the runtime behavior of services running in the service mesh. Attributes are named and
  * > typed pieces of metadata describing ingress and egress traffic and the environment this traffic occurs in. An Istio attribute

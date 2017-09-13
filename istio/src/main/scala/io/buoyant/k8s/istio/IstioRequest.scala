@@ -11,7 +11,7 @@ case class IstioRequest[Req](
   authority: String,
   getHeader: (String) => Option[String],
   req: Req
-) extends IstioDataFlow {
+) extends IstioAttributesHolder {
 
   val requestedPath: RequestPathIstioAttribute = RequestPathIstioAttribute(uri)
 }
