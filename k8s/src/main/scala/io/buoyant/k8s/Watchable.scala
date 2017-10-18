@@ -166,6 +166,7 @@ private[k8s] abstract class Watchable[O <: KubeObject: TypeReference, W <: Watch
                 currentVersion.flatMap {
                   case Some(version) => Future.value(_watch(Some(version)))
                   case None =>
+                    log.debug("NO CURRENT VERSION")
                     // In this case, we want to try loading the initial information instead before watching again.
                     restartWatches(labelSelector, fieldSelector).map {
                       case (ws, ver) =>

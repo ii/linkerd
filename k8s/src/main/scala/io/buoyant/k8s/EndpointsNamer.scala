@@ -343,16 +343,16 @@ object EndpointsNamer {
       this.copy(endpoints = newEndpoints, ports = newPorts)
     }
 
-    def update(event: v1.EndpointsWatch): ServiceEndpoints =
-      event match {
+    def update(event: v1.EndpointsWatch): ServiceEndpoints = {
+      val svcEndpoints = event match {
         case v1.EndpointsAdded(e) =>
-          log.debug("k8s ns %s service %s added endpoints", nsName, serviceName)
+          //          log.debug("k8s ns %s service %s added endpoints", nsName, serviceName)
           newState(e)
         case v1.EndpointsModified(e) =>
-          log.debug("k8s ns %s service %s modified endpoints", nsName, serviceName)
+          //          log.debug("k8s ns %s service %s modified endpoints", nsName, serviceName)
           newState(e)
         case v1.EndpointsDeleted(_) =>
-          log.debug("k8s ns %s service %s deleted endpoints", nsName, serviceName)
+          //          log.debug("k8s ns %s service %s deleted endpoints", nsName, serviceName)
           this.copy(endpoints = Set.empty, ports = Map.empty)
         case v1.EndpointsError(error) =>
           log.warning(
@@ -361,7 +361,9 @@ object EndpointsNamer {
           )
           this
       }
-
+      log.debug(s"ServiceEndpoints ns $nsName service $serviceName updated to $svcEndpoints")
+      svcEndpoints
+    }
   }
 
   private[EndpointsNamer] object ServiceEndpoints {
@@ -380,15 +382,18 @@ object EndpointsNamer {
     )(
       resp: Option[v1.Endpoints]
     ): ServiceEndpoints =
-      resp.map { fromEndpoints(nsName, serviceName) }
-        .getOrElse {
-          log.warning(
-            "k8s ns %s service %s endpoints resource does not exist, " +
-              "assuming it has yet to be created",
-            nsName, serviceName
-          )
-          ServiceEndpoints(nsName, serviceName, Set.empty, Map.empty)
-        }
+      resp.map { endpoints =>
+        val svcEndpoints = fromEndpoints(nsName, serviceName)(endpoints)
+        log.debug(s"ServiceEndpoints ns $nsName service $serviceName updated to $svcEndpoints")
+        svcEndpoints
+      }.getOrElse {
+        log.warning(
+          "k8s ns %s service %s endpoints resource does not exist, " +
+            "assuming it has yet to be created",
+          nsName, serviceName
+        )
+        ServiceEndpoints(nsName, serviceName, Set.empty, Map.empty)
+      }
   }
 
 }

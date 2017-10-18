@@ -53,10 +53,10 @@ class JsonStreamParser(mapper: ObjectMapper with ScalaObjectMapper) {
     parse(chunk) { json =>
       var reading = true
       while (reading) {
-        log.ifTrace {
-          val Buf.Utf8(rest) = chunk.slice(offset.toInt, chunk.length)
-          s"json chunk reading: [$offset, ${chunk.length}] $rest"
-        }
+        //        log.ifTrace {
+        //          val Buf.Utf8(rest) = chunk.slice(offset.toInt, chunk.length)
+        //          s"json chunk reading: [$offset, ${chunk.length}] $rest"
+        //        }
 
         try {
           json.readValueAs[T](implicitly[TypeReference[T]]) match {
@@ -96,12 +96,12 @@ class JsonStreamParser(mapper: ObjectMapper with ScalaObjectMapper) {
   }
 
   private def fromReaderJson(r: Reader, chunkSize: Int = Int.MaxValue): AsyncStream[Option[Buf]] = {
-    log.trace("json reading chunk of %d bytes", chunkSize)
+    //    log.trace("json reading chunk of %d bytes", chunkSize)
     val read = r.read(chunkSize).respond {
       case Return(Some(Buf.Utf8(chunk))) =>
-        log.trace("json read chunk: %s", chunk)
+      //        log.trace("json read chunk: %s", chunk)
       case Return(None) | Throw(_: Reader.ReaderDiscarded) =>
-        log.trace("json read eoc")
+      //        log.trace("json read eoc")
       case Throw(e) =>
         log.warning(e, "json read error")
     }.handle {

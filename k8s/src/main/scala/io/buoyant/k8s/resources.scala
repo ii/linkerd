@@ -224,21 +224,32 @@ private[k8s] class NsObjectResource[O <: KubeObject: TypeReference, W <: Watch[O
   override protected def restartWatches(
     labelSelector: Option[String] = None,
     fieldSelector: Option[String] = None
-  ): Future[(Seq[W], Option[String])] =
+  ): Future[(Seq[W], Option[String])] = {
+    log.warning(s"restartWatches $watchPath: get")
     get(
       labelSelector,
       fieldSelector,
       None,
       retryIndefinitely = true,
       watch = true
-    ).map { maybeObj =>
-      val watch = maybeObj.toSeq.flatMap { obj => Seq(od.toWatch(obj)) }
+    ).onFailure {
+      ex => log.warning(s"restartWatches $watchPath: get failed $ex")
+    }.onSuccess {
+      _ => log.warning(s"restartWatches $watchPath: get succeeded")
+    }.map { maybeObj =>
+      log.warning(s"restartWatches $watchPath: get returned $maybeObj")
+      val watch = maybeObj.toSeq.flatMap { obj =>
+        log.warning(s"restartWatches $watchPath: converting $obj to watch")
+        Seq(od.toWatch(obj))
+      }
       val version =
         for {
           obj <- maybeObj
           meta <- obj.metadata
           version <- meta.resourceVersion
         } yield version
+      log.warning(s"restartWatches $watchPath: version $version")
       (watch, version)
     }
+  }
 }
