@@ -225,21 +225,21 @@ private[k8s] class NsObjectResource[O <: KubeObject: TypeReference, W <: Watch[O
     labelSelector: Option[String] = None,
     fieldSelector: Option[String] = None
   ): Future[(Seq[W], Option[String])] = {
-    log.warning(s"restartWatches $watchPath: get")
+    log.warning(s"restartWatches $path: get")
+    // TODO: i hate this code so much.
     get(
       labelSelector,
       fieldSelector,
       None,
       retryIndefinitely = true,
-      watch = true
     ).onFailure {
-      ex => log.warning(s"restartWatches $watchPath: get failed $ex")
+      ex => log.warning(s"restartWatches $path: get failed $ex")
     }.onSuccess {
-      _ => log.warning(s"restartWatches $watchPath: get succeeded")
-    }.map { maybeObj =>
-      log.warning(s"restartWatches $watchPath: get returned $maybeObj")
-      val watch = maybeObj.toSeq.flatMap { obj =>
-        log.warning(s"restartWatches $watchPath: converting $obj to watch")
+      _ => log.warning(s"restartWatches $path: get succeeded")
+    }.flatMap { maybeObj =>
+      log.warning(s"restartWatches $path: get returned $maybeObj")
+      val getResult = maybeObj.toSeq.flatMap { obj =>
+        log.warning(s"restartWatches $path: converting $obj to watch")
         Seq(od.toWatch(obj))
       }
       val version =
@@ -248,8 +248,26 @@ private[k8s] class NsObjectResource[O <: KubeObject: TypeReference, W <: Watch[O
           meta <- obj.metadata
           version <- meta.resourceVersion
         } yield version
-      log.warning(s"restartWatches $watchPath: version $version")
-      (watch, version)
+      log.warning(s"restartWatches $path: version $version")
+      get(
+        labelSelector,
+        fieldSelector,
+        None,
+        retryIndefinitely = true,
+        watch = true
+      ).onFailure {
+        ex => log.warning(s"restartWatches $watchPath: watch failed $ex")
+      }.onSuccess {
+        _ => log.warning(s"restartWatches $watchPath: watch succeeded")
+      }.map { maybeObj =>
+        log.warning(s"restartWatches $watchPath: watch returned $maybeObj")
+        val watches = maybeObj.toSeq.flatMap { obj =>
+          log.warning(s"restartWatches $watchPath: converting $obj to watch")
+          Seq(od.toWatch(obj))
+        }
+        (getResult ++ watches, version)
+      }
+
     }
   }
 }
