@@ -231,7 +231,7 @@ private[k8s] class NsObjectResource[O <: KubeObject: TypeReference, W <: Watch[O
       labelSelector,
       fieldSelector,
       None,
-      retryIndefinitely = true,
+      retryIndefinitely = true
     ).onFailure {
       ex => log.warning(s"restartWatches $path: get failed $ex")
     }.onSuccess {
