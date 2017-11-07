@@ -87,20 +87,14 @@ class ThriftNamerClient(
               }
               loop(stamp1)
 
-            case Throw(e@thrift.BindFailure(reason, retry, _, _)) =>
+            case Throw(Failure(Some(Released))) =>
+
+            case Throw(e) =>
               Trace.recordBinary("namerd.client/bind.fail", reason)
               if (!stopped) {
                 log.debug(e, "resetting stamp on bind")
                 pending = Future.sleep(retry.seconds).onSuccess(_ => loop(TStamp.empty))
               }
-
-            case Throw(Failure(Some(Released))) =>
-
-            // XXX we have to handle other errors, right?
-            case Throw(e) =>
-              log.error(e, "bind on %s", path.show)
-              Trace.recordBinary("namerd.client/bind.exc", e.toString)
-              states() = Activity.Failed(e)
           }
         }
 
