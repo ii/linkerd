@@ -21,7 +21,7 @@ class ConsulDtabStore(
 
   private[this] val log = Logger.get("consul")
 
-  def namespaceIsValid(ns: Ns): Boolean = Pattern.matches("[\\w+/?]+", ns)
+  def namespaceIsValid(ns: Ns): Boolean = Pattern.matches("[\\w+\\-?/?]+", ns)
 
   override val list: Activity[Set[Ns]] = {
     def namespace(key: String): Ns = key.stripPrefix("/").stripSuffix("/").substring(root.show.length)
