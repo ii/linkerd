@@ -13,3 +13,5 @@ npm-debug.log
 .DS_Store
 
 **/*.iml
+h2spec*
+l5d-h2spec.log
