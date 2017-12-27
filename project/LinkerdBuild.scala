@@ -355,7 +355,7 @@ object LinkerdBuild extends Base {
     )
 
     val JdkSettings = BundleSettings ++ Seq(
-      dockerJavaImage := "openjdk:8u151-jdk",
+      dockerJavaImage := s"openjdk:${openJdkVersion}-jdk",
       dockerTag := s"${version.value}-jdk",
       assemblyJarName in assembly := s"${name.value}-${version.value}-jdk-exec"
     )
@@ -619,7 +619,7 @@ object LinkerdBuild extends Base {
     )
 
     val JdkSettings = BundleSettings ++ Seq(
-      dockerJavaImage := "openjdk:8u151-jdk",
+      dockerJavaImage := s"openjdk:${openJdkVersion}-jdk",
       dockerTag := s"${version.value}-jdk",
       assemblyJarName in assembly := s"${name.value}-${version.value}-jdk-exec"
     )
