@@ -12,7 +12,7 @@ import io.buoyant.test.{ActivityValues, Awaits, Exceptions, FunSuite}
 
 class ConsulDtabStoreTest extends FunSuite with Awaits with Exceptions with ActivityValues {
 
-  val namespacesJson = """["namerd/dtabs/foo/bar/", "namerd/dtabs/foo/baz/"]"""
+  val namespacesJson = """["namerd/dtabs/foo", "namerd/dtabs/bar"]"""
   val namerdPrefix = "/namerd/dtabs"
   val constBackoff = Backoff.const(Duration.Zero)
 
@@ -42,7 +42,7 @@ class ConsulDtabStoreTest extends FunSuite with Awaits with Exceptions with Acti
     store.list.states respond {
       state = _
     }
-    assert(state == Activity.Ok(Set("foo/bar", "foo/baz")))
+    assert(state == Activity.Ok(Set("foo", "bar")))
   }
 
   test("return an empty set when namespaces are absent") {
