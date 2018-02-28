@@ -30,6 +30,11 @@ case class AccessLogger(log: Logger) extends SimpleFilter[Request, Response] {
 object AccessLogger {
 
   object param {
+    case class Label(label: String)
+    implicit object Label extends Stack.Param[Label] {
+      val default = Label("")
+    }
+
     case class File(path: String)
     implicit object File extends Stack.Param[File] {
       val default = File("")
@@ -52,10 +57,11 @@ object AccessLogger {
   }
 
   val module: Stackable[ServiceFactory[Request, Response]] =
-    new Stack.Module4[param.File, param.RollPolicy, param.Append, param.RotateCount, ServiceFactory[Request, Response]] {
+    new Stack.Module5[param.Label, param.File, param.RollPolicy, param.Append, param.RotateCount, ServiceFactory[Request, Response]] {
       val role = Stack.Role("HttpAccessLogger")
       val description = "Log Http requests/response summaries to a file"
       def make(
+        label: param.Label,
         file: param.File,
         roll: param.RollPolicy,
         append: param.Append,
@@ -66,7 +72,7 @@ object AccessLogger {
           case param.File("") => factory
           case param.File(path) =>
             val logger = LoggerFactory(
-              node = "access",
+              node = "access_" + label,
               level = Some(Level.INFO),
               handlers = List(FileHandler(
                 path, roll.policy, append.append, rotate.count,

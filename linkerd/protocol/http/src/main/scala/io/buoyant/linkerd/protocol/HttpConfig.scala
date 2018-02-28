@@ -242,5 +242,6 @@ case class HttpConfig(
     .maybeWith(maxRequestKB.map(kb => hparam.MaxRequestSize(kb.kilobytes)))
     .maybeWith(maxResponseKB.map(kb => hparam.MaxResponseSize(kb.kilobytes)))
     .maybeWith(streamingEnabled.map(hparam.Streaming(_)))
-    .maybeWith(compressionLevel.map(hparam.CompressionLevel(_)))
+    .maybeWith(compressionLevel.map(hparam.CompressionLevel(_))) +
+    AccessLogger.param.Label(label)
 }

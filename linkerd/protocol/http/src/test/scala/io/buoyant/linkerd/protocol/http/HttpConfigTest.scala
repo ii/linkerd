@@ -129,6 +129,16 @@ class HttpConfigTest extends FunSuite with Awaits {
       .head
       .serverParams[TimestampHeaderFilter.Param]
     assert(timestamper.header.contains("x-request-start"))
+  }
 
+  test("access logger") {
+    val yaml = s"""
+                  |protocol: http
+                  |label: foo
+      """.stripMargin
+    val config = parse(yaml)
+
+    val logger = config.routerParams[AccessLogger.param.Label]
+    assert(config.routerParams[AccessLogger.param.Label].label == "foo")
   }
 }
