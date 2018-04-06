@@ -26,7 +26,6 @@ class H2FrameCodec(
   private[this] var channelCtx, http2HandlerCtx: ChannelHandlerContext = null
 
   private[this] val connectionListener = new Http2ConnectionAdapter {
-
     override def onStreamActive(stream: Http2Stream): Unit = {
       if (channelCtx != null) {
         if (http2Handler.connection.local().isValidStreamId(stream.id)) {
@@ -63,6 +62,10 @@ class H2FrameCodec(
     channelCtx = ctx
     ctx.pipeline.addBefore(ctx.executor, ctx.name, null, http2Handler)
     http2HandlerCtx = ctx.pipeline.context(http2Handler)
+  }
+
+  def handlerAdded0(ctx: ChannelHandlerContext): Unit = {
+    println("handler0")
   }
 
   /**
@@ -236,7 +239,7 @@ object H2FrameCodec {
     }
     decoder.frameListener(frameListener)
 
-    val handler = new ConnectionHandler(decoder, encoder, settings)
+    val handler = new ConnectionHandler(decoder, encoder, settings, streamKey)
     new H2FrameCodec(handler, streamKey)
   }
 
@@ -245,7 +248,8 @@ object H2FrameCodec {
   private class ConnectionHandler(
     decoder: Http2ConnectionDecoder,
     encoder: Http2ConnectionEncoder,
-    initialSettings: Http2Settings
+    initialSettings: Http2Settings,
+    streamKey: PropertyKey
   ) extends Http2ConnectionHandler(decoder, encoder, initialSettings) {
 
   }
