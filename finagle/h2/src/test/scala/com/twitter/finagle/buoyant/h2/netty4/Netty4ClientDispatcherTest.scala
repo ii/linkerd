@@ -110,7 +110,7 @@ class Netty4ClientDispatcherTest extends FunSuite {
     assert(recvq.offer({
       val hs = new DefaultHttp2Headers
       hs.status("222")
-      StreamTestUtils.mkNewHeaderStreamFrame(hs, 5, Http2Stream.State.OPEN, false)
+      new DefaultHttp2HeadersFrame(hs, false).stream(H2FrameStream(5, Http2Stream.State.OPEN))
     }))
 
     assert(rsp0f.poll == None)
@@ -122,7 +122,7 @@ class Netty4ClientDispatcherTest extends FunSuite {
     assert(recvq.offer({
       val hs = new DefaultHttp2Headers
       hs.status("222")
-      StreamTestUtils.mkNewHeaderStreamFrame(hs, 3, Http2Stream.State.OPEN, false)
+      new DefaultHttp2HeadersFrame(hs, false).stream(H2FrameStream(3, Http2Stream.State.OPEN))
     }))
     assert(rsp0f.isDefined)
     val rsp0 = await(rsp0f)
