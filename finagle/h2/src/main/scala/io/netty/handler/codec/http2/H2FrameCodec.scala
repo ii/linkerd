@@ -37,7 +37,7 @@ class H2FrameCodec(
     }
 
     override def onStreamClosed(stream0: Http2Stream): Unit = {
-      val stream = stream0.getProperty(streamKey)
+      val stream = stream0.getProperty(streamKey).asInstanceOf[Http2FrameStream]
       if (stream != null) {
         channelCtx.fireUserEventTriggered(Http2FrameStreamEvent.stateChanged(stream).asInstanceOf[AnyRef]); ()
       }
@@ -84,7 +84,7 @@ class H2FrameCodec(
           // active before handler added.  The stream was already made
           // active, but ctx may have been null so it wasn't
           // initialized.  https://github.com/netty/netty/issues/4942
-          if (stream.getProperty(streamKey) == null) {
+          if (stream.getProperty(streamKey) == null) {git
             connectionListener.onStreamActive(stream)
           }
 
