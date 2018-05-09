@@ -3,7 +3,7 @@ package io.buoyant.namerd.iface
 import com.twitter.finagle.http.{MediaType, Request, Response}
 import com.twitter.finagle.{Dtab, Service}
 import com.twitter.util.Future
-import io.buoyant.admin.names.DelegateApiHandler
+import io.buoyant.admin.DelegationJsonCodec
 import io.buoyant.namer.{Delegator, NamespacedInterpreterConfig, RichActivity}
 
 case class DelegatorConfig(
@@ -44,7 +44,7 @@ class NamerdHandler(
         </div>
         <div id="namerd-stats"></div>
       </div>
-      <script id="dtab-data" type="application/json">${DelegateApiHandler.Codec.writeStr(dtabs)}</script>
+      <script id="dtab-data" type="application/json">${DelegationJsonCodec.writeStr(dtabs)}</script>
       """
     rsp
   }
