@@ -3,7 +3,8 @@ package io.buoyant.grpc.runtime
 import com.twitter.concurrent.{AsyncMutex, Permit}
 import com.twitter.finagle.buoyant.h2
 import com.twitter.io.Buf
-import com.twitter.util.{Future, Return, Promise, Throw, Try}
+import com.twitter.util.{Future, Promise, Return, Throw, Try}
+import io.netty.buffer.{ByteBuf, Unpooled}
 import java.nio.ByteBuffer
 import scala.util.control.NoStackTrace
 
@@ -120,7 +121,7 @@ object DecodingStream {
       /** The current gRPC message header, if one has been parsed */
       header: Option[Header] = None,
       /** Unparsed bytes */
-      buf: Buf = Buf.Empty,
+      buf: ByteBuf = Unpooled.EMPTY_BUFFER,
       /** Tracks how many bytes are consumed and when the underling data may be released */
       releaser: Releaser = Releaser.Nil
     ) extends RecvState
@@ -275,7 +276,7 @@ object DecodingStream {
         FrameReleaser(SegmentLatch(f.release _), 0, 0, Nil)
 
       case f: h2.Frame.Data =>
-        FrameReleaser(SegmentLatch(f.release _), 0, f.buf.length, Nil)
+        FrameReleaser(SegmentLatch(f.release _), 0, f.buf.readableBytes(), Nil)
     }
   }
 
@@ -332,7 +333,7 @@ object DecodingStream {
     case rst@RecvState.Reset(_) => Decoded(rst, None)
 
     case RecvState.Buffer(None, initbuf, releaser0) =>
-      val buf = initbuf.concat(frame.buf)
+      val buf = Unpooled.wrappedBuffer(2, initbuf, frame.buf)//initbuf.concat(frame.buf)
       val Buf.ByteBuffer.Owned(bb0) = Buf.ByteBuffer.coerce(buf)
       val bb = bb0.duplicate()
       val releaser = releaser0.track(frame)
