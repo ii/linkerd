@@ -8,9 +8,6 @@ import com.twitter.finagle.http.Status
 import com.twitter.finagle.http.util.StringUtil
 import com.twitter.finagle.naming.buoyant.DstBindingFactory
 import com.twitter.util._
-import io.buoyant.linkerd.ActiveTracer._
-import io.buoyant.namer.DelegateTree._
-import io.buoyant.namer.{DelegateTree, Delegator}
 import io.buoyant.router.RouterLabel
 import io.buoyant.router.RoutingFactory
 import io.buoyant.router.RoutingFactory.BaseDtab
