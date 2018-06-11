@@ -16,7 +16,7 @@ import scala.util.control.NoStackTrace
  * invoked serially, i.e. when there are no pending `recv()` calls on
  * the stream.
  */
-private[runtime] trait DecodingStream[+T] extends Stream[T] {
+private[runtime] trait DecodingStream[T] extends Stream[T] {
   import DecodingStream._
 
   protected[this] def frames: h2.Stream
@@ -93,7 +93,7 @@ private[runtime] trait DecodingStream[+T] extends Stream[T] {
     }
   }
 
-  private[this] def decodeHeader[T](bb0: ByteBuf): Option[Header] =
+  private[this] def decodeHeader(bb0: ByteBuf): Option[Header] =
     if (bb0.readableBytes() < GrpcFrameHeaderSz) None
     else {
       val compressed = bb0.readByte() == 1
@@ -101,14 +101,14 @@ private[runtime] trait DecodingStream[+T] extends Stream[T] {
       Some(Header(compressed, sz))
     }
 
-  private case class Decoded[T](
+  private case class Decoded(
     state: RecvState,
     result: Option[Stream.Releasable[T]]
   )
 
-  private[this] def decode[T](
+  private[this] def decode(
     s0: RecvState
-  ): Decoded[T] = s0 match {
+  ): Decoded = s0 match {
     case rst@RecvState.Reset(_) => Decoded(rst, None)
 
     case RecvState.Buffer(Some(hdr), releaser) =>
@@ -123,10 +123,10 @@ private[runtime] trait DecodingStream[+T] extends Stream[T] {
       }
   }
 
-  private[this] def decodeFrame[T](
+  private[this] def decodeFrame(
     s0: RecvState,
     frame: h2.Frame.Data
-  ): Decoded[T] = s0 match {
+  ): Decoded = s0 match {
     case rst@RecvState.Reset(_) => Decoded(rst, None)
 
     case RecvState.Buffer(None, releaser0) =>
@@ -146,10 +146,10 @@ private[runtime] trait DecodingStream[+T] extends Stream[T] {
       decodeMessage(hdr, releaser.track(frame))
   }
 
-  private[this] def decodeMessage[T](
+  private[this] def decodeMessage(
     hdr: Header,
     releaser: Releaser
-  ): Decoded[T] =
+  ): Decoded =
     if (hdr.compressed) throw new IllegalArgumentException("compression not supported yet")
     else if (hdr.size <= buf.readableBytes()) {
       // The message is fully encoded in the buffer, so decode it.

@@ -1,11 +1,10 @@
 package io.buoyant.grpc.runtime
 
-import com.google.protobuf.{CodedInputStream, CodedOutputStream, WireFormat}
-import com.twitter.io.Buf
+import com.google.protobuf.{CodedInputStream, CodedOutputStream}
 import com.twitter.finagle.buoyant.h2
 import com.twitter.util.Future
 import io.netty.buffer.{ByteBuf, Unpooled}
-import java.nio.{ByteBuffer, ByteOrder}
+import java.nio.ByteBuffer
 
 trait Codec[T] {
 
@@ -37,7 +36,7 @@ trait Codec[T] {
   def encodeGrpcMessage(msg: T): ByteBuf =
     Codec.encodeGrpcMessage(msg, this)
 
-  def decodeGrpcMessage(buf: Buf): T =
+  def decodeGrpcMessage(buf: ByteBuf): T =
     Codec.decodeGrpcMessage(buf, this)
 
   val decodeRequest: h2.Request => Stream[T] =
@@ -111,21 +110,20 @@ object Codec {
     Unpooled.wrappedBuffer(bb)
   }
 
-  private def decodeGrpcMessage[T](buf: Buf, codec: Codec[T]): T = {
-    val Buf.ByteBuffer.Owned(bb0) = Buf.ByteBuffer.coerce(buf)
-    val bb = bb0.duplicate()
-    if (GrpcFrameHeaderSz > bb.remaining)
+  private def decodeGrpcMessage[T](buf: ByteBuf, codec: Codec[T]): T = {
+    if (GrpcFrameHeaderSz > buf.readableBytes())
       throw new IllegalArgumentException("too short for header")
 
+    val dup = buf.duplicate()
     // TODO decompress
-    val compressed = bb.get == 1
+    val compressed = dup.readByte() == 1
     if (compressed)
       throw new IllegalArgumentException("compressed")
 
-    val frameLen = bb.getInt
-    if (frameLen > bb.remaining)
+    val frameLen = dup.readInt()
+    if (frameLen > dup.readableBytes)
       throw new IllegalArgumentException("too short for frame")
-    bb.limit(bb.position + frameLen)
-    codec.decode(CodedInputStream.newInstance(bb))
+    val nioBuf = dup.nioBuffer(dup.readerIndex, frameLen)
+    codec.decode(CodedInputStream.newInstance(nioBuf))
   }
 }
