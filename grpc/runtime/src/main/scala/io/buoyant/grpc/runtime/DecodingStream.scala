@@ -130,7 +130,7 @@ private[runtime] trait DecodingStream[T] extends Stream[T] {
     case rst@RecvState.Reset(_) => Decoded(rst, None)
 
     case RecvState.Buffer(None, releaser0) =>
-      buf.addComponent(frame.buf.retain())
+      buf.addComponent(true, frame.buf.retain())
       val releaser = releaser0.track(frame)
       decodeHeader(buf) match {
         case None => Decoded(RecvState.Buffer(None, releaser), None)
@@ -142,7 +142,7 @@ private[runtime] trait DecodingStream[T] extends Stream[T] {
     case RecvState.Buffer(Some(hdr), releaser) =>
       // We've already decoded a header, but not its message. Try to
       // decode the message.
-      buf.addComponent(frame.buf.retain())
+      buf.addComponent(true, frame.buf.retain())
       decodeMessage(hdr, releaser.track(frame))
   }
 

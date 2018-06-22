@@ -79,7 +79,7 @@ object Codec {
 
         case d: h2.Frame.Data =>
           // Copy the buffer so that the frame and its buffer can be safely released.
-          accum.addComponent(Unpooled.copiedBuffer(d.buf))
+          accum.addComponent(true, Unpooled.copiedBuffer(d.buf))
           val isEnd = d.isEnd
           d.release()
           if (isEnd) Future.value(GrpcStatus.Unknown())
@@ -105,7 +105,9 @@ object Codec {
     val bb = ByteBuffer.allocate(GrpcFrameHeaderSz + sz)
     bb.put(0.toByte) // uncompressed
     bb.putInt(sz)
-    codec.encode(msg, CodedOutputStream.newInstance(bb))
+    val cos = CodedOutputStream.newInstance(bb)
+    codec.encode(msg, cos)
+    cos.flush()
     bb.flip()
     Unpooled.wrappedBuffer(bb)
   }

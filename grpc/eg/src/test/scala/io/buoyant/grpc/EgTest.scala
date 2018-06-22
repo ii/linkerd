@@ -53,7 +53,7 @@ class EgTest extends FunSuite {
   }
 
   test("decode") {
-    assert(Eg.Message.codec.decodeGrpcMessage(msgBuf) == expectedMsg)
+    assert(Eg.Message.codec.decodeByteBuffer(msgBuf.nioBuffer()) == expectedMsg)
   }
 
   test("encode") {
@@ -66,7 +66,7 @@ class EgTest extends FunSuite {
   test("roundtrip decode/encode") {
     val bb = ByteBuffer.allocate(msgBuf.readableBytes())
     val pbos = CodedOutputStream.newInstance(bb.duplicate())
-    Eg.Message.codec.encode(Eg.Message.codec.decodeGrpcMessage(msgBuf), pbos)
+    Eg.Message.codec.encode(Eg.Message.codec.decodeByteBuffer(msgBuf.nioBuffer()), pbos)
     assert(Arrays.equals(bb.array, msgBytes))
   }
 
@@ -74,7 +74,7 @@ class EgTest extends FunSuite {
     val bb = ByteBuffer.allocate(msgBuf.readableBytes())
     val pbos = CodedOutputStream.newInstance(bb.duplicate())
     Eg.Message.codec.encode(expectedMsg, pbos)
-    val msg = Eg.Message.codec.decodeGrpcMessage(Unpooled.wrappedBuffer(bb))
+    val msg = Eg.Message.codec.decodeByteBuffer(bb)
     assert(msg == expectedMsg)
   }
 }
