@@ -2,7 +2,6 @@ package com.twitter.finagle.buoyant.h2
 package netty4
 
 import com.twitter.finagle.buoyant.h2
-import com.twitter.finagle.netty4.ByteBufConversion
 import com.twitter.util.{Future, Promise}
 import io.netty.handler.codec.http2._
 import scala.collection.JavaConverters._

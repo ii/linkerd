@@ -130,6 +130,10 @@ private[runtime] trait DecodingStream[T] extends Stream[T] {
     case rst@RecvState.Reset(_) => Decoded(rst, None)
 
     case RecvState.Buffer(None, releaser0) =>
+      // We don't want the composite buf to be able to release this buf component until the frame
+      // has been released, so we call retain() here.  This component should be fully released once
+      // both the frame has been released and when the composite buf has fully read and discarded
+      // this component.
       buf.addComponent(true, frame.buf.retain())
       val releaser = releaser0.track(frame)
       decodeHeader(buf) match {
@@ -154,8 +158,10 @@ private[runtime] trait DecodingStream[T] extends Stream[T] {
     else if (hdr.size <= buf.readableBytes()) {
       // The message is fully encoded in the buffer, so decode it.
       val (nextReleaser, release) = releaser.consume(hdr.size).releasable()
+      // Copy the buffered message into a nio buffer so that it can be decoded.
       val nioBuf = buf.nioBuffer(buf.readerIndex(), hdr.size)
       val msg = decoder(nioBuf)
+      // Advance the reader index past the message and release any fully read components.
       buf.skipBytes(hdr.size)
       buf.discardReadComponents()
 
