@@ -28,11 +28,11 @@ object ClientDispatcher {
           frames.write(h2.Frame.Data(Unpooled.EMPTY_BUFFER, eos = true))
 
         case Throw(s: GrpcStatus) =>
-          frames.reset(s.toReset)
+          frames.cancel(s.toReset)
           Future.exception(s)
 
         case Throw(e) =>
-          frames.reset(h2.Reset.InternalError)
+          frames.cancel(h2.Reset.InternalError)
           Future.exception(e)
       }
 
