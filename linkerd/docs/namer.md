@@ -812,10 +812,8 @@ dtab: |
 
 A namer that completely rewrites a path.  This is useful for doing arbitrary
 reordering of the path segments that is not possible using standard prefix
-replacement.  While this is a general purpose tool for reordering path
-segments, it cannot be used to modify or split individual segments (for
-modification or splitting of individual segments, see the rewriting namers
-section below).
+replacement. In addition to reordering path segments, this tool can be used
+to modify or split individual segments using regex capture groups.
 
 If the name matches the pattern in the config, it will be replaced by the
 name in the config.  Additionally, any variables in the pattern will capture
@@ -922,7 +920,7 @@ would be rewritten to `/pfx/foo/resource/name`
 
 ### hostportPfx
 
-```
+```bash
 /ip-hostport => /$/inet;
 /svc         => /$/io.buoyant.hostportPfx/ip-hostport;
 ```
@@ -943,7 +941,7 @@ would be rewritten to `/pfx/host/port/etc`.
 
 ### porthostPfx
 
-```
+```bash
 /k8s-porthost => /#/io.l5d.k8s/default;
 /svc          => /$/io.buoyant.porthostPfx/k8s-porthost;
 ```
