@@ -89,6 +89,7 @@ class Server extends pb.TestService {
       override protected def onInterrupt(t: Throwable): Unit =
         t match {
           case e: Failure if e.isFlagged(Failure.Interrupted) =>
+            log.debug("streamingInputCall failed with %s", e)
             reqs.reset(Reset.Cancel)
             f.raise(e)
           case e =>
