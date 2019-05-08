@@ -258,7 +258,13 @@ object LinkerdBuild extends Base {
        |   -Dio.netty.allocator.numDirectArenas=${FINAGLE_WORKERS:-8}    \
        |   -Dcom.twitter.finagle.netty4.numWorkers=${FINAGLE_WORKERS:-8} \
        |   ${GC_LOG_OPTION:-}                                            \
-       |   ${LOCAL_JVM_OPTIONS:-}                                        "
+       |   ${LOCAL_JVM_OPTIONS:-}"
+       |
+       |version=$("${JAVA_HOME:-/usr}"/bin/java -version 2>&1 | sed 's/.*version "\([0-9]*\)\..*/\1/; 1q')
+       |if ! [ "$version" -ge 9 ]; then
+       |  DEFAULT_JVM_OPTIONS="$DEFAULT_JVM_OPTIONS -XX:+UseConcMarkSweepGC"
+       |fi
+       |
        |""".stripMargin
 
   object Namerd {
@@ -390,7 +396,6 @@ object LinkerdBuild extends Base {
          |      -XX:+UseGCLogFileRotation
          |      -XX:NumberOfGCLogFiles=10
          |      -XX:GCLogFileSize=10M"
-         |    DEFAULT_JVM_OPTIONS="-XX:+UseConcMarkSweepGC"
          |  fi
          |fi
          |
@@ -485,7 +490,6 @@ object LinkerdBuild extends Base {
          |      -XX:+UseGCLogFileRotation
          |      -XX:NumberOfGCLogFiles=10
          |      -XX:GCLogFileSize=10M"
-         |    DEFAULT_JVM_OPTIONS="-XX:+UseConcMarkSweepGC"
          |  fi
          |fi
          |
@@ -730,7 +734,6 @@ object LinkerdBuild extends Base {
          |      -XX:+UseGCLogFileRotation
          |      -XX:NumberOfGCLogFiles=10
          |      -XX:GCLogFileSize=10M"
-         |    DEFAULT_JVM_OPTIONS="-XX:+UseConcMarkSweepGC"
          |  fi
          |fi
          |
